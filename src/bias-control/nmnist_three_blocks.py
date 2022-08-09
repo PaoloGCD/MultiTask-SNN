@@ -1,6 +1,8 @@
 import os
+import sys
 import time
 import h5py
+import xmltodict
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -13,6 +15,31 @@ from matplotlib import animation
 from src.misc import stats_multitask, assistant_multitask, cuba_multitask
 
 from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+
+# Get parameters
+experiment_number = 0
+parameters = "../../params/bias-three-blocks.xml"
+if len(sys.argv) == 2:
+    experiment_number = int(sys.argv[1])
+if len(sys.argv) == 3:
+    experiment_number = int(sys.argv[1])
+    parameters = str(sys.argv[2])
+
+with open(parameters) as fd:
+    params = xmltodict.parse(fd.read())
+
+epochs = int(params['params']['epochs'])
+loss_rate = float(params['params']['loss_rate'])
+bias_1 = float(params['params']['bias_1'])
+bias_2 = float(params['params']['bias_2'])
+
+result_path = f'Bias-NMNIST-three-blocks-{experiment_number:02d}'
+os.makedirs(result_path, exist_ok=True)
+
+with open(result_path + '/parameters.xml', 'w') as param_file:
+    param_file.write(xmltodict.unparse(params))
+
+print('EXPERIMENT', experiment_number)
 
 
 class Network(torch.nn.Module):
@@ -82,9 +109,6 @@ class Network(torch.nn.Module):
             b.export_hdf5(layer.create_group(f'{i}'))
 
 
-trained_folder = 'Trained'
-os.makedirs(trained_folder, exist_ok=True)
-
 # device = torch.device('cpu')
 device = torch.device('cuda')
 
@@ -102,12 +126,8 @@ error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').t
 
 stats = stats_multitask.LearningStats()
 assistant = assistant_multitask.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
-epochs = 5
 
 print('Training using:', device)
-bias_1 = 0
-bias_2 = 0.5
-loss_rate = 0
 for epoch in range(epochs):
     time_start = time.time()
     for i, (input, label1, label2) in enumerate(train_loader):  # training loop
@@ -185,15 +205,15 @@ for epoch in range(epochs):
     #     print(f'[Epoch {epoch:2d}/{epochs}]\n{stats_str}')
 
     if stats.testing1.best_classifier_accuracy:
-        torch.save(net.state_dict(), trained_folder + '/network.pt')
+        torch.save(net.state_dict(), result_path + '/network.pt')
     stats.update()
-    stats.save(trained_folder + '/')
-    net.grad_flow(trained_folder + '/')
+    stats.save(result_path + '/')
+    net.grad_flow(result_path + '/')
 
 # stats.plot(figsize=(15, 5))
 
-net.load_state_dict(torch.load(trained_folder + '/network.pt'))
-net.export_hdf5(trained_folder + '/network.net')
+net.load_state_dict(torch.load(result_path + '/network.pt'))
+net.export_hdf5(result_path + '/network.net')
 
 # set bias for test 1
 for layer in net.feature_extraction_block:
@@ -206,8 +226,8 @@ for i in range(3):
     out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 12, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
-    inp_anim.save(f'{trained_folder}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
-    out_anim.save(f'{trained_folder}/out1-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+    inp_anim.save(f'{result_path}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+    out_anim.save(f'{result_path}/out1-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
 
 # set bias for test 2
 for layer in net.feature_extraction_block:
@@ -218,5 +238,5 @@ output_label, output_task = net(input.to(device))
 for i in range(3):
     out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 12, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
-    out_anim.save(f'{trained_folder}/out2-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+    out_anim.save(f'{result_path}/out2-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
 

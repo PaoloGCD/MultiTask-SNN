@@ -1,0 +1,6 @@
+<params>
+    <bias_1> 0 </bias_1>
+    <bias_2> 0.5 </bias_2>
+    <epochs> 100 </epochs>
+    <loss_rate> 0.5 </loss_rate>
+</params>
