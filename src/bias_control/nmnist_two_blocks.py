@@ -2,10 +2,10 @@ import os
 import sys
 import time
 import h5py
+import xmltodict
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import xmltodict
 from torch.utils.data import DataLoader
 
 # import slayer from lava-dl
@@ -18,21 +18,24 @@ from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
-parameters = "../../params/threshold-two-blocks.xml"
-if len(sys.argv) == 2:
-    experiment_number = int(sys.argv[1])
+parameters_path = "../../params/bias-two-blocks.xml"
+data_path = "../../data"
 if len(sys.argv) == 3:
-    experiment_number = int(sys.argv[1])
-    parameters = str(sys.argv[2])
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+elif len(sys.argv) == 4:
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+    experiment_number = int(sys.argv[3])
 
-with open(parameters) as fd:
+with open(parameters_path) as fd:
     params = xmltodict.parse(fd.read())
 
 epochs = int(params['params']['epochs'])
-threshold_1 = float(params['params']['threshold_1'])
-threshold_2 = float(params['params']['threshold_2'])
+bias_1 = float(params['params']['bias_1'])
+bias_2 = float(params['params']['bias_2'])
 
-result_path = f'Threshold-NMNIST-two-blocks-{experiment_number:02d}'
+result_path = f'results/Bias-NMNIST-two-blocks-{experiment_number:02d}'
 os.makedirs(result_path, exist_ok=True)
 
 with open(result_path + '/parameters.xml', 'w') as param_file:
@@ -103,8 +106,8 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path='../../data')
-testing_set = NMNISTDataset(train=False, path='../../data')
+training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
 test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
@@ -118,20 +121,20 @@ print('Initializing training')
 for epoch in range(epochs):
     time_start = time.time()
     for i, (input, label1, label2) in enumerate(train_loader):  # training loop
-        # set threshold according to task
+        # set bias according to task
         if np.random.rand() < 0.5:
-            # set threshold to value 1
+            # set biases to value 1
             for layer in net.feature_extraction_block:
-                layer.neuron.threshold = threshold_1
+                layer.neuron.bias = bias_1
             for layer in net.label_classification_block:
-                layer.neuron.threshold = threshold_1
+                layer.neuron.bias = bias_1
             label = label1
         else:
-            # set threshold to value 2
+            # set biases to value 2
             for layer in net.feature_extraction_block:
-                layer.neuron.threshold = threshold_2
+                layer.neuron.bias = bias_2
             for layer in net.label_classification_block:
-                layer.neuron.threshold = threshold_2
+                layer.neuron.bias = bias_2
             label = label2
         # train
         output = assistant.train(input, label)
@@ -145,9 +148,9 @@ for epoch in range(epochs):
 
     # set biases for test 1
     for layer in net.feature_extraction_block:
-        layer.neuron.threshold = threshold_1
+        layer.neuron.bias = bias_1
     for layer in net.label_classification_block:
-        layer.neuron.threshold = threshold_1
+        layer.neuron.bias = bias_1
 
     # start test 1
     for i, (input, label1, label2) in enumerate(test_loader):  # training loop
@@ -159,9 +162,9 @@ for epoch in range(epochs):
 
     # set biases for test 2
     for layer in net.feature_extraction_block:
-        layer.neuron.threshold = threshold_2
+        layer.neuron.bias = bias_2
     for layer in net.label_classification_block:
-        layer.neuron.threshold = threshold_2
+        layer.neuron.bias = bias_2
 
     for i, (input, label1, label2) in enumerate(test_loader):  # training loop
         output = assistant.test(input, label2, 2)
@@ -190,9 +193,9 @@ net.export_hdf5(result_path + '/network.net')
 
 # set biases for test 1
 for layer in net.feature_extraction_block:
-    layer.neuron.threshold = threshold_1
+    layer.neuron.bias = bias_1
 for layer in net.label_classification_block:
-    layer.neuron.threshold = threshold_1
+    layer.neuron.bias = bias_1
 output = net(input.to(device))
 for i in range(3):
     inp_event = slayer.io.tensor_to_event(input[i].cpu().data.numpy().reshape(2, 34, 34, -1))
@@ -204,13 +207,11 @@ for i in range(3):
 
 # set biases for test 2
 for layer in net.feature_extraction_block:
-    layer.neuron.threshold = threshold_2
+    layer.neuron.bias = bias_2
 for layer in net.label_classification_block:
-    layer.neuron.threshold = threshold_2
+    layer.neuron.bias = bias_2
 output = net(input.to(device))
 for i in range(3):
     out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 12, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     out_anim.save(f'{result_path}/out2{i}.gif', animation.PillowWriter(fps=24), dpi=300)
-
-

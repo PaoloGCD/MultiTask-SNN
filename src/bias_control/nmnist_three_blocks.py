@@ -2,10 +2,10 @@ import os
 import sys
 import time
 import h5py
+import xmltodict
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import xmltodict
 from torch.utils.data import DataLoader
 
 import lava.lib.dl.slayer as slayer
@@ -18,22 +18,25 @@ from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
-parameters = "../../params/threshold-three-blocks.xml"
-if len(sys.argv) == 2:
-    experiment_number = int(sys.argv[1])
+parameters_path = "../../params/bias-three-blocks.xml"
+data_path = "../../data"
 if len(sys.argv) == 3:
-    experiment_number = int(sys.argv[1])
-    parameters = str(sys.argv[2])
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+elif len(sys.argv) == 4:
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+    experiment_number = int(sys.argv[3])
 
-with open(parameters) as fd:
+with open(parameters_path) as fd:
     params = xmltodict.parse(fd.read())
 
 epochs = int(params['params']['epochs'])
 loss_rate = float(params['params']['loss_rate'])
-threshold_1 = float(params['params']['threshold_1'])
-threshold_2 = float(params['params']['threshold_2'])
+bias_1 = float(params['params']['bias_1'])
+bias_2 = float(params['params']['bias_2'])
 
-result_path = f'Threshold-NMNIST-three-blocks-{experiment_number:02d}'
+result_path = f'results/Bias-NMNIST-three-blocks-{experiment_number:02d}'
 os.makedirs(result_path, exist_ok=True)
 
 with open(result_path + '/parameters.xml', 'w') as param_file:
@@ -116,8 +119,8 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path='../../data')
-testing_set = NMNISTDataset(train=False, path='../../data')
+training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
 test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
@@ -134,18 +137,18 @@ for epoch in range(epochs):
         # set bias according to task
         if np.random.rand() < 0.5:
             # set biases to 1
-            for layer in net.feature_extraction_block:
-                layer.neuron.threshold = threshold_1
-            for layer in net.label_classification_block:
-                layer.neuron.threshold = threshold_1
+            for module in net.feature_extraction_block:
+                module.neuron.bias = bias_1
+            for module in net.label_classification_block:
+                module.neuron.bias = bias_1
             label = label1
             task = torch.zeros(input.shape[0], dtype=torch.int64)
         else:
             # set biases to 0
-            for layer in net.feature_extraction_block:
-                layer.neuron.threshold = threshold_2
-            for layer in net.label_classification_block:
-                layer.neuron.threshold = threshold_2
+            for module in net.feature_extraction_block:
+                module.neuron.bias = bias_2
+            for module in net.label_classification_block:
+                module.neuron.bias = bias_2
             label = label2
             task = torch.ones(input.shape[0], dtype=torch.int64)
         # train
@@ -161,16 +164,16 @@ for epoch in range(epochs):
     print(f'[Epoch {epoch:2d}/{epochs}] Train loss = {train_classifier_loss:0.4f} / {train_task_loss:0.4f} acc = {train_classifier_acc:0.4f} / {train_task_acc:0.4f}', end=' ')
 
     time_test_start = time.time()
-
-    # set biases for test 1
-    for layer in net.feature_extraction_block:
-        layer.neuron.threshold = threshold_1
-    for layer in net.label_classification_block:
-        layer.neuron.threshold = threshold_1
-
     for i, (input, label1, label2) in enumerate(test_loader):  # training loop
-        label_task_1 = torch.zeros(input.shape[0], dtype=torch.int64)
-        output = assistant.test(input, label1, label_task_1, 1)
+        # set biases to 0
+        for module in net.feature_extraction_block:
+            module.neuron.bias = bias_1
+        for module in net.label_classification_block:
+            module.neuron.bias = bias_1
+
+        task_1 = torch.zeros(input.shape[0], dtype=torch.int64)
+
+        output = assistant.test(input, label1, task_1, 1)
 
     test1_classifier_loss = stats.testing1.classifier_loss
     test1_task_loss = stats.testing1.task_loss
@@ -179,16 +182,16 @@ for epoch in range(epochs):
     test1_task_acc = stats.testing1.task_accuracy
     print(f'| Test1 loss = {test1_classifier_loss:0.4f} / {test1_task_loss:0.4f} acc = {test1_classifier_acc:0.4f} / {test1_task_acc}', end=' ')
 
-    # set biases to 2
-    for layer in net.feature_extraction_block:
-        layer.neuron.threshold = threshold_2
-    for layer in net.label_classification_block:
-        layer.neuron.threshold = threshold_2
-
     for i, (input, label1, label2) in enumerate(test_loader):  # training loop
-        label_task_2 = torch.ones(input.shape[0], dtype=torch.int64)
-        output = assistant.test(input, label2, label_task_2, 2)
+        # set biases to 1
+        for module in net.feature_extraction_block:
+            module.neuron.bias = bias_2
+        for module in net.label_classification_block:
+            module.neuron.bias = bias_2
 
+        task_2 = torch.ones(input.shape[0], dtype=torch.int64)
+
+        output = assistant.test(input, label2, task_2, 2)
     time_test = (time.time() - time_test_start)/60.0
 
     test2_classifier_loss = stats.testing2.classifier_loss
@@ -215,11 +218,11 @@ for epoch in range(epochs):
 net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
-# set threshold for test 1
+# set bias for test 1
 for layer in net.feature_extraction_block:
-    layer.neuron.threshold = threshold_1
+    layer.neuron.bias = bias_1
 for layer in net.label_classification_block:
-    layer.neuron.threshold = threshold_1
+    layer.neuron.bias = bias_1
 output_label, output_task = net(input.to(device))
 for i in range(3):
     inp_event = slayer.io.tensor_to_event(input[i].cpu().data.numpy().reshape(2, 34, 34, -1))
@@ -229,16 +232,14 @@ for i in range(3):
     inp_anim.save(f'{result_path}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
     out_anim.save(f'{result_path}/out1-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
 
-# set threshold for test 2
+# set bias for test 2
 for layer in net.feature_extraction_block:
-    layer.neuron.threshold = threshold_2
+    layer.neuron.bias = bias_2
 for layer in net.label_classification_block:
-    layer.neuron.threshold = threshold_2
+    layer.neuron.bias = bias_2
 output_label, output_task = net(input.to(device))
 for i in range(3):
     out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 12, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     out_anim.save(f'{result_path}/out2-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
-
-
 
