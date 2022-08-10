@@ -1,3 +1,10 @@
+"""
+Multitask NMNIST dataset loading class.
+
+Rewritten/modified from https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/dl/slayer/nmnist/
+@author: Paolo G. Cachi
+"""
+
 import os
 import glob
 import zipfile

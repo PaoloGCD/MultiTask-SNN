@@ -1,3 +1,12 @@
+"""
+SNN for single-task NMNIST classification.
+
+Extracted from https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/dl/slayer/nmnist/
+@author: Intel Corporation
+
+Rewritten by Paolo G. Cachi
+"""
+
 import os
 import h5py
 import matplotlib.pyplot as plt

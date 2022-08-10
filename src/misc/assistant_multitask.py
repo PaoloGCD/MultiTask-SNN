@@ -2,8 +2,11 @@
 # Copyright (C) 2022 Intel Corporation
 # SPDX-License-Identifier:  BSD-3-Clause
 
-"""Assistant utility for automatically load network from network
-description."""
+"""Multitask assistant utility for automatically load network from network
+description.
+
+Built on Intel's Lava-dl implementation https://github.com/lava-nc/lava-dl
+@author: Paolo G. Cachi"""
 
 import torch
 

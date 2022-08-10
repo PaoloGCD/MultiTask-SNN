@@ -1,3 +1,10 @@
+"""
+Threshold-controlled two block multi-task SNN.
+
+Built on Intel's Lava-dl tutorial implementation https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/dl/slayer/nmnist/train.ipynb
+@author: Paolo G. Cachi
+"""
+
 import os
 import sys
 import time

@@ -1,7 +1,10 @@
 # Copyright (C) 2022 Intel Corporation
 # SPDX-License-Identifier:  BSD-3-Clause
 
-"""Module for managing, visualizing, and displaying learning statistics."""
+"""Modified module for managing, visualizing, and displaying learning statistics.
+
+Built on Intel's Lava-dl implementation https://github.com/lava-nc/lava-dl
+@author: Paolo G. Cachi"""
 
 import numpy as np
 import matplotlib.pyplot as plt
