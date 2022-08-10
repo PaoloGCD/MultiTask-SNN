@@ -8,7 +8,9 @@ Rewritten by Paolo G. Cachi
 """
 
 import os
+import sys
 import h5py
+import xmltodict
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
@@ -18,6 +20,31 @@ import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
 from src.misc.dataset_nmnist import augment, NMNISTDataset
+
+# Get parameters
+experiment_number = 0
+parameters_path = "../../params/base_case.xml"
+data_path = "../../data/NMNIST"
+if len(sys.argv) == 3:
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+elif len(sys.argv) == 4:
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+    experiment_number = int(sys.argv[3])
+
+with open(parameters_path) as fd:
+    params = xmltodict.parse(fd.read())
+
+epochs = int(params['params']['epochs'])
+
+result_path = f'results/Base-case-NMNIST-{experiment_number:02d}'
+os.makedirs(result_path, exist_ok=True)
+
+with open(result_path + '/parameters.xml', 'w') as param_file:
+    param_file.write(xmltodict.unparse(params))
+
+print('EXPERIMENT', experiment_number)
 
 
 class Network(torch.nn.Module):
@@ -65,9 +92,6 @@ class Network(torch.nn.Module):
             b.export_hdf5(layer.create_group(f'{i}'))
 
 
-trained_folder = 'results/base_case'
-os.makedirs(trained_folder, exist_ok=True)
-
 # device = torch.device('cpu')
 device = torch.device('cuda')
 
@@ -75,8 +99,8 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path='../../data')
-testing_set = NMNISTDataset(train=False, path='../../data')
+training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
 test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
@@ -85,7 +109,6 @@ error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').t
 
 stats = slayer.utils.LearningStats()
 assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
-epochs = 100
 
 print('Initializing training')
 for epoch in range(epochs):
@@ -98,15 +121,15 @@ for epoch in range(epochs):
     print(f'\r[Epoch {epoch:2d}/{epochs}] {stats}')
 
     if stats.testing.best_accuracy:
-        torch.save(net.state_dict(), trained_folder + '/network.pt')
+        torch.save(net.state_dict(), result_path + '/network.pt')
     stats.update()
-    stats.save(trained_folder + '/')
-    net.grad_flow(trained_folder + '/')
+    stats.save(result_path + '/')
+    net.grad_flow(result_path + '/')
 
 stats.plot(figsize=(15, 5))
 
-net.load_state_dict(torch.load(trained_folder + '/network.pt'))
-net.export_hdf5(trained_folder + '/network.net')
+net.load_state_dict(torch.load(result_path + '/network.pt'))
+net.export_hdf5(result_path + '/network.net')
 
 output = net(input.to(device))
 for i in range(5):
@@ -114,5 +137,5 @@ for i in range(5):
     out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 10, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
-    inp_anim.save(f'{trained_folder}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
-    out_anim.save(f'{trained_folder}/out-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+    inp_anim.save(f'{result_path}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+    out_anim.save(f'{result_path}/out-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
