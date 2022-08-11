@@ -26,7 +26,7 @@ from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
 # Get parameters
 experiment_number = 0
 parameters_path = "../../params/bias-two-blocks.xml"
-data_path = "../../data"
+data_path = "../../data/NMNIST"
 if len(sys.argv) == 3:
     parameters_path = str(sys.argv[1])
     data_path = str(sys.argv[2])
