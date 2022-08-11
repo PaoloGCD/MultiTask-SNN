@@ -36,6 +36,7 @@ class LearningStat:
         does current epoch have best accuracy? It is updated only
         after `stats.update()`.
     """
+
     def __init__(self):
         self.loss_sum = 0
         self.correct_samples = 0
@@ -104,18 +105,18 @@ class LearningStat:
             if self.min_loss is None:
                 return f'loss = {self.loss:11.5f}'
             else:
-                return f'loss = {self.loss:11.5f} '\
-                    f'(min = {self.min_loss:11.5f})'
+                return f'loss = {self.loss:11.5f} ' \
+                       f'(min = {self.min_loss:11.5f})'
         else:
             if self.min_loss is None:
                 if self.max_accuracy is None:
-                    return f'loss = {self.loss:11.5f}{" "*24}'\
-                        f'accuracy = {self.accuracy:7.5f}'
+                    return f'loss = {self.loss:11.5f}{" " * 24}' \
+                           f'accuracy = {self.accuracy:7.5f}'
             else:
-                return f'loss = {self.loss:11.5f} '\
-                    f'(min = {self.min_loss:11.5f}){" "*4}'\
-                    f'accuracy = {self.accuracy:7.5f} '\
-                    f'(max = {self.max_accuracy:7.5f})'
+                return f'loss = {self.loss:11.5f} ' \
+                       f'(min = {self.min_loss:11.5f}){" " * 4}' \
+                       f'accuracy = {self.accuracy:7.5f} ' \
+                       f'(max = {self.max_accuracy:7.5f})'
 
 
 class LearningStats:
@@ -130,11 +131,13 @@ class LearningStats:
     validation : LearningStat
         `LearningStat` object to manage validation statistics.
     """
+
     def __init__(self):
         self.lines_printed = 0
         self.training = LearningStat()
         self.testing1 = LearningStat()
         self.testing2 = LearningStat()
+        self.testing3 = LearningStat()
         self.validation = LearningStat()
 
     def update(self):
@@ -145,6 +148,8 @@ class LearningStats:
         self.testing1.reset()
         self.testing2.update()
         self.testing2.reset()
+        self.testing3.update()
+        self.testing3.reset()
         self.validation.update()
         self.validation.reset()
 
@@ -161,17 +166,21 @@ class LearningStats:
 
         test1_str = str(self.testing1)
         if len(test1_str) > 0:
-            test_str = ' | Test1  ' + test1_str
+            test1_str = ' | Test1  ' + test1_str
 
         test2_str = str(self.testing2)
         if len(test2_str) > 0:
-            test_str = ' | Test1  ' + test2_str
+            test2_str = ' | Test2  ' + test2_str
 
-        return f'Train {str(self.training)}{val_str}{test1_str}{test2_str}'
+        test3_str = str(self.testing3)
+        if len(test3_str) > 0:
+            test3_str = ' | Test3  ' + test3_str
+
+        return f'Train {str(self.training)}{val_str}{test1_str}{test2_str}{test3_str}'
 
     def print(
-        self, epoch,
-        iter=None, time_elapsed=None, header=None, dataloader=None
+            self, epoch,
+            iter=None, time_elapsed=None, header=None, dataloader=None
     ):
         """Dynamic print method for stats.
 
@@ -201,15 +210,15 @@ class LearningStats:
         if time_elapsed is None:
             profile_str = ''
         else:
-            profile_str = f', {time_elapsed*1000:12.4f} ms elapsed'
+            profile_str = f', {time_elapsed * 1000:12.4f} ms elapsed'
 
         if dataloader is None or iter is None:
             progress_str = ''
         else:
             iter_sig_digits = int(np.ceil(np.log10(len(dataloader.dataset))))
-            progress_str = f'{iter*dataloader.batch_size:{iter_sig_digits}}' \
-                + f'/{len(dataloader.dataset)} '\
-                  f'({100.0*iter/len(dataloader):.0f}%)'
+            progress_str = f'{iter * dataloader.batch_size:{iter_sig_digits}}' \
+                           + f'/{len(dataloader.dataset)} ' \
+                             f'({100.0 * iter / len(dataloader):.0f}%)'
             iter_str = ': '
 
         if header is not None:
@@ -238,6 +247,7 @@ class LearningStats:
             Defaults to None.
 
         """
+
         def figure_init(fig_id):
             """
             """
@@ -256,11 +266,15 @@ class LearningStats:
         if self.testing1.valid_loss_log:
             if loss_plot_exists is False:
                 loss_plot_exists = figure_init(figures[0])
-            plt.semilogy(self.testing1.loss_log, label='Testing')
+            plt.semilogy(self.testing1.loss_log, label='Testing1')
         if self.testing2.valid_loss_log:
             if loss_plot_exists is False:
                 loss_plot_exists = figure_init(figures[0])
-            plt.semilogy(self.testing2.loss_log, label='Testing')
+            plt.semilogy(self.testing2.loss_log, label='Testing2')
+        if self.testing3.valid_loss_log:
+            if loss_plot_exists is False:
+                loss_plot_exists = figure_init(figures[0])
+            plt.semilogy(self.testing3.loss_log, label='Testing3')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.legend()
@@ -268,9 +282,10 @@ class LearningStats:
             plt.savefig(path + 'loss.png')
 
         if self.training.valid_accuracy_log is False and \
-            self.validation.valid_accuracy_log is False and \
+                self.validation.valid_accuracy_log is False and \
                 self.testing1.valid_accuracy_log is False and \
-                    self.testing2.valid_accuracy_log is False:
+                self.testing2.valid_accuracy_log is False and \
+                self.testing2.valid_accuracy_log is False:
             return
         acc_plot_exists = False
         if self.training.valid_accuracy_log:
@@ -283,11 +298,15 @@ class LearningStats:
         if self.testing1.valid_accuracy_log:
             if acc_plot_exists is False:
                 acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.testing1.accuracy_log, label='Testing')
+            plt.plot(self.testing1.accuracy_log, label='Testing1')
         if self.testing2.valid_accuracy_log:
             if acc_plot_exists is False:
                 acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.testing2.accuracy_log, label='Testing')
+            plt.plot(self.testing2.accuracy_log, label='Testing2')
+        if self.testing3.valid_accuracy_log:
+            if acc_plot_exists is False:
+                acc_plot_exists = figure_init(figures[1])
+            plt.plot(self.testing3.accuracy_log, label='Testing3')
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
         plt.legend()
@@ -313,25 +332,30 @@ class LearningStats:
                 header += ' Test1       '
             if self.testing2.valid_loss_log:
                 header += ' Test2       '
+            if self.testing3.valid_loss_log:
+                header += ' Test3       '
 
             loss.write(f'#{header}\r\n')
 
-            for tr, va, te1, te2 in zip(
-                self.training.loss_log,
-                self.validation.loss_log,
-                self.testing1.loss_log,
-                self.testing2.loss_log
+            for tr, va, te1, te2, te3 in zip(
+                    self.training.loss_log,
+                    self.validation.loss_log,
+                    self.testing1.loss_log,
+                    self.testing2.loss_log,
+                    self.testing3.loss_log
             ):
                 entry = '' if tr is None else f'{tr:12.6f} '
                 entry += '' if va is None else f'{va:12.6f} '
                 entry += '' if te1 is None else f'{te1:12.6f} '
                 entry += '' if te2 is None else f'{te2:12.6f} '
+                entry += '' if te3 is None else f'{te3:12.6f} '
                 loss.write(f'{entry}\r\n')
 
         if self.training.valid_accuracy_log is False and \
-            self.validation.valid_accuracy_log is False and \
+                self.validation.valid_accuracy_log is False and \
                 self.testing1.valid_accuracy_log is False and \
-                    self.testing2.valid_accuracy_log is False:
+                self.testing2.valid_accuracy_log is False and \
+                self.testing3.valid_accuracy_log is False:
             return
         with open(path + 'accuracy.txt', 'wt') as accuracy:
             header = ''
@@ -343,19 +367,23 @@ class LearningStats:
                 header += ' Test1        '
             if self.testing2.valid_loss_log:
                 header += ' Test2        '
+            if self.testing3.valid_loss_log:
+                header += ' Test3        '
 
             accuracy.write(f'#{header}\r\n')
 
-            for tr, va, te1, te2 in zip(
-                self.training.accuracy_log,
-                self.validation.accuracy_log,
-                self.testing1.accuracy_log,
-                self.testing2.accuracy_log
+            for tr, va, te1, te2, te3 in zip(
+                    self.training.accuracy_log,
+                    self.validation.accuracy_log,
+                    self.testing1.accuracy_log,
+                    self.testing2.accuracy_log,
+                    self.testing3.accuracy_log
             ):
                 entry = '' if tr is None else f'{tr:12.6f} '
                 entry += '' if va is None else f'{va:12.6f} '
                 entry += '' if te1 is None else f'{te1:12.6f} '
                 entry += '' if te2 is None else f'{te2:12.6f} '
+                entry += '' if te3 is None else f'{te2:12.6f} '
                 accuracy.write(f'{entry}\r\n')
 
     def load(self, path=''):

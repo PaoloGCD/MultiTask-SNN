@@ -182,5 +182,15 @@ class Assistant:
                         self.classifier(output_label) == target_label).cpu().data.item()
                     self.stats.testing2.correct_task_samples += torch.sum(
                         self.classifier(output_task) == target_task).cpu().data.item()
+            if self.stats is not None and test_number == 3:
+                self.stats.testing3.num_samples += input.shape[0]
+                self.stats.testing3.loss_sum += loss.cpu().data.item() * output_label.shape[0]
+                self.stats.testing3.loss_classifier_sum += loss_label.cpu().data.item() * output_label.shape[0]
+                self.stats.testing3.loss_task_sum += loss_task.cpu().data.item() * output_label.shape[0]
+                if self.classifier is not None:  # classification
+                    self.stats.testing3.correct_classifier_samples += torch.sum(
+                        self.classifier(output_label) == target_label).cpu().data.item()
+                    self.stats.testing3.correct_task_samples += torch.sum(
+                        self.classifier(output_task) == target_task).cpu().data.item()
 
             return output_label, output_task

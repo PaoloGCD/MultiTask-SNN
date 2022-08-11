@@ -1,5 +1,5 @@
 """
-Threshold-controlled three block multi-task SNN.
+Threshold-controlled three-blocks three-tasks SNN.
 
 Built on Intel's Lava-dl tutorial implementation https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/dl/slayer/nmnist/train.ipynb
 @author: Paolo G. Cachi
@@ -21,12 +21,12 @@ from matplotlib import animation
 
 from src.misc import stats_3blocks, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
+from src.misc.dataset_nmnist_three_tasks import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
-parameters_path = "../../params/threshold-three-blocks.xml"
-data_path = "../../data"
+parameters_path = "../../params/three-tasks-three-blocks.xml"
+data_path = "../../data/NMNIST"
 if len(sys.argv) == 3:
     parameters_path = str(sys.argv[1])
     data_path = str(sys.argv[2])
@@ -42,8 +42,9 @@ epochs = int(params['params']['epochs'])
 loss_rate = float(params['params']['loss_rate'])
 threshold_1 = float(params['params']['threshold_1'])
 threshold_2 = float(params['params']['threshold_2'])
+threshold_3 = float(params['params']['threshold_3'])
 
-result_path = f'results/Threshold-NMNIST-three-blocks-{experiment_number:02d}'
+result_path = f'results/Three-tasks-NMNIST-three-blocks-{experiment_number:02d}'
 os.makedirs(result_path, exist_ok=True)
 
 with open(result_path + '/parameters.xml', 'w') as param_file:
@@ -74,11 +75,11 @@ class Network(torch.nn.Module):
 
         self.label_classification_block = torch.nn.ModuleList([
             cuba_multitask.Dense(neuron_params_drop, 512, 128, weight_norm=True, delay=True),
-            cuba_multitask.Dense(neuron_params, 128, 12, weight_norm=True)
+            cuba_multitask.Dense(neuron_params, 128, 14, weight_norm=True)
         ])
 
         self.label_task_block = torch.nn.ModuleList([
-            cuba_multitask.Dense(neuron_params, 512, 2, weight_norm=True)
+            cuba_multitask.Dense(neuron_params, 512, 3, weight_norm=True)
         ])
 
     def forward(self, spike):
@@ -140,24 +141,33 @@ assistant = assistant_3blocks.Assistant(net, error, optimizer, stats, classifier
 print('Training using:', device)
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input, label1, label2) in enumerate(train_loader):  # training loop
-        # set bias according to task
-        if np.random.rand() < 0.5:
-            # set biases to 1
+    for i, (input, label1, label2, label3) in enumerate(train_loader):  # training loop
+        # set threshold according to task
+        random_number = np.random.rand()
+        if random_number < 0.33:
+            # set threshold to value 1
             for layer in net.feature_extraction_block:
                 layer.neuron.threshold = threshold_1
             for layer in net.label_classification_block:
                 layer.neuron.threshold = threshold_1
             label = label1
             task = torch.zeros(input.shape[0], dtype=torch.int64)
-        else:
-            # set biases to 0
+        elif random_number < 0.66:
+            # set threshold to value 2
             for layer in net.feature_extraction_block:
                 layer.neuron.threshold = threshold_2
             for layer in net.label_classification_block:
                 layer.neuron.threshold = threshold_2
             label = label2
             task = torch.ones(input.shape[0], dtype=torch.int64)
+        else:
+            # set threshold to value 3
+            for layer in net.feature_extraction_block:
+                layer.neuron.threshold = threshold_3
+            for layer in net.label_classification_block:
+                layer.neuron.threshold = threshold_3
+            label = label3
+            task = torch.ones(input.shape[0], dtype=torch.int64)*2
         # train
         output_label, output_task = assistant.train(input, label, task, loss_rate)
     time_train = (time.time() - time_start)/60.0
@@ -178,7 +188,7 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_1
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, label3) in enumerate(test_loader):  # training loop
         label_task_1 = torch.zeros(input.shape[0], dtype=torch.int64)
         output = assistant.test(input, label1, label_task_1, 1)
 
@@ -195,7 +205,7 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_2
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, label3) in enumerate(test_loader):  # training loop
         label_task_2 = torch.ones(input.shape[0], dtype=torch.int64)
         output = assistant.test(input, label2, label_task_2, 2)
 
@@ -207,12 +217,25 @@ for epoch in range(epochs):
     test2_classifier_acc = stats.testing2.classifier_accuracy
     test2_task_acc = stats.testing2.task_accuracy
     print(f'| Test2 loss = {test2_classifier_loss:0.4f} / {test2_task_loss:0.4f} acc = {test2_classifier_acc:0.4f} / {test2_task_acc}', end=' ')
-    print(f'| Time = {time_train+time_test:2.3f}')
 
-    # if epoch % 20 == 0:  # cleanup display
-    #     print('\r', ' ' * len(f'\r[Epoch {epoch:2d}/{epochs}] {stats}'))
-    #     stats_str = str(stats).replace("| ", "\n")
-    #     print(f'[Epoch {epoch:2d}/{epochs}]\n{stats_str}')
+    # set biases for test 3
+    for layer in net.feature_extraction_block:
+        layer.neuron.threshold = threshold_3
+    for layer in net.label_classification_block:
+        layer.neuron.threshold = threshold_3
+
+    for i, (input, label1, label2, label3) in enumerate(test_loader):  # training loop
+        label_task_3 = torch.zeros(input.shape[0], dtype=torch.int64)
+        output = assistant.test(input, label1, label_task_3, 3)
+
+    test3_classifier_loss = stats.testing3.classifier_loss
+    test3_task_loss = stats.testing3.task_loss
+
+    test3_classifier_acc = stats.testing3.classifier_accuracy
+    test3_task_acc = stats.testing3.task_accuracy
+    print(f'| Test3 loss = {test3_classifier_loss:0.4f} / {test3_task_loss:0.4f} acc = {test3_classifier_acc:0.4f} / {test3_task_acc}', end=' ')
+
+    print(f'| Time = {time_train+time_test:2.3f}')
 
     if stats.testing1.best_classifier_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
@@ -220,7 +243,7 @@ for epoch in range(epochs):
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')
 
-# stats.plot(figsize=(15, 5))
+stats.plot(figsize=(15, 5))
 
 net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
@@ -249,6 +272,17 @@ for i in range(3):
     out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 12, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     out_anim.save(f'{result_path}/out2-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+
+# set threshold for test 3
+for layer in net.feature_extraction_block:
+    layer.neuron.threshold = threshold_3
+for layer in net.label_classification_block:
+    layer.neuron.threshold = threshold_3
+output_label, output_task = net(input.to(device))
+for i in range(3):
+    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 12, -1))
+    out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
+    out_anim.save(f'{result_path}/out3-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
 
 
 

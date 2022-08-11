@@ -211,6 +211,16 @@ class Assistant:
                             self.classifier(output) == target
                         ).cpu().data.item()
 
+            if test_number == 3:
+                if self.stats is not None:
+                    self.stats.testing3.num_samples += input.shape[0]
+                    self.stats.testing3.loss_sum += loss.cpu().data.item() \
+                        * output.shape[0]
+                    if self.classifier is not None:   # classification
+                        self.stats.testing3.correct_samples += torch.sum(
+                            self.classifier(output) == target
+                        ).cpu().data.item()
+
             if count is None:
                 return output
 

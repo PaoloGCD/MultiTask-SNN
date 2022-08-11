@@ -1,0 +1,6 @@
+<params>
+    <threshold_1> 1.25 </threshold_1>
+    <threshold_2> 5 </threshold_2>
+    <threshold_3> 10 </threshold_3>
+    <epochs> 100 </epochs>
+</params>

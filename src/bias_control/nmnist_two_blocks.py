@@ -20,8 +20,8 @@ import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
 
-from src.misc import stats_2block, assistant_2block, cuba_multitask
-from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+from src.misc import stats_2blocks, assistant_2blocks, cuba_multitask
+from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -121,8 +121,8 @@ test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
 
 error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').to(device)
 
-stats = stats_2block.LearningStats()
-assistant = assistant_2block.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+stats = stats_2blocks.LearningStats()
+assistant = assistant_2blocks.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
 
 print('Initializing training')
 for epoch in range(epochs):

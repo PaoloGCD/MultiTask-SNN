@@ -19,9 +19,9 @@ import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
 
-from src.misc import stats_multitask, assistant_multitask, cuba_multitask
+from src.misc import stats_3blocks, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -134,8 +134,8 @@ test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
 
 error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').to(device)
 
-stats = stats_multitask.LearningStats()
-assistant = assistant_multitask.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+stats = stats_3blocks.LearningStats()
+assistant = assistant_3blocks.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
 
 print('Training using:', device)
 for epoch in range(epochs):
