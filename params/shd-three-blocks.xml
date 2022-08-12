@@ -1,0 +1,7 @@
+<params>
+    <threshold_1> 1.25 </threshold_1>
+    <threshold_2> 5 </threshold_2>
+    <loss_rate> 0.5 </loss_rate>
+    <epochs> 100 </epochs>
+    <sample_length> 300 </sample_length>
+</params>
