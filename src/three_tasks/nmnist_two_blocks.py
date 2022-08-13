@@ -169,7 +169,7 @@ for epoch in range(epochs):
         layer.neuron.threshold = threshold_1
 
     # start test 1
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, label3) in enumerate(test_loader):  # training loop
         output = assistant.test(input, label1, 1)
 
     test1_loss = stats.testing1.loss
@@ -182,7 +182,7 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_2
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, label3) in enumerate(test_loader):  # training loop
         output = assistant.test(input, label2, 2)
     time_test = (time.time() - time_test_start)/60.0
 

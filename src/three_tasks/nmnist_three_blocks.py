@@ -197,7 +197,7 @@ for epoch in range(epochs):
 
     test1_classifier_acc = stats.testing1.classifier_accuracy
     test1_task_acc = stats.testing1.task_accuracy
-    print(f'| Test1 loss = {test1_classifier_loss:0.4f} / {test1_task_loss:0.4f} acc = {test1_classifier_acc:0.4f} / {test1_task_acc}', end=' ')
+    print(f'| Test1 loss = {test1_classifier_loss:0.4f} / {test1_task_loss:0.4f} acc = {test1_classifier_acc:0.4f} / {test1_task_acc:0.4f}', end=' ')
 
     # set biases to 2
     for layer in net.feature_extraction_block:
@@ -216,7 +216,7 @@ for epoch in range(epochs):
 
     test2_classifier_acc = stats.testing2.classifier_accuracy
     test2_task_acc = stats.testing2.task_accuracy
-    print(f'| Test2 loss = {test2_classifier_loss:0.4f} / {test2_task_loss:0.4f} acc = {test2_classifier_acc:0.4f} / {test2_task_acc}', end=' ')
+    print(f'| Test2 loss = {test2_classifier_loss:0.4f} / {test2_task_loss:0.4f} acc = {test2_classifier_acc:0.4f} / {test2_task_acc:0.4f}', end=' ')
 
     # set biases for test 3
     for layer in net.feature_extraction_block:
@@ -225,15 +225,15 @@ for epoch in range(epochs):
         layer.neuron.threshold = threshold_3
 
     for i, (input, label1, label2, label3) in enumerate(test_loader):  # training loop
-        label_task_3 = torch.zeros(input.shape[0], dtype=torch.int64)
-        output = assistant.test(input, label1, label_task_3, 3)
+        label_task_3 = torch.ones(input.shape[0], dtype=torch.int64)*2
+        output = assistant.test(input, label3, label_task_3, 3)
 
     test3_classifier_loss = stats.testing3.classifier_loss
     test3_task_loss = stats.testing3.task_loss
 
     test3_classifier_acc = stats.testing3.classifier_accuracy
     test3_task_acc = stats.testing3.task_accuracy
-    print(f'| Test3 loss = {test3_classifier_loss:0.4f} / {test3_task_loss:0.4f} acc = {test3_classifier_acc:0.4f} / {test3_task_acc}', end=' ')
+    print(f'| Test3 loss = {test3_classifier_loss:0.4f} / {test3_task_loss:0.4f} acc = {test3_classifier_acc:0.4f} / {test3_task_acc:0.4f}', end=' ')
 
     print(f'| Time = {time_train+time_test:2.3f}')
 

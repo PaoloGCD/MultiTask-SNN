@@ -65,7 +65,7 @@ class LearningStat:
     @property
     def accuracy(self):
         """Current accuracy."""
-        if self.num_samples > 0 and self.correct_samples > 0:
+        if self.num_samples > 0:
             return self.correct_samples / self.num_samples
         else:
             return 0

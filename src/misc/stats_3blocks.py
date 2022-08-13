@@ -96,7 +96,7 @@ class LearningStat:
     @property
     def classifier_accuracy(self):
         """Current task accuracy."""
-        if self.num_samples > 0 and self.correct_classifier_samples > 0:
+        if self.num_samples > 0:
             return self.correct_classifier_samples / self.num_samples
         else:
             return None
@@ -104,7 +104,7 @@ class LearningStat:
     @property
     def task_accuracy(self):
         """Current task accuracy."""
-        if self.num_samples > 0 and self.correct_task_samples > 0:
+        if self.num_samples > 0:
             return self.correct_task_samples / self.num_samples
         else:
             return None
@@ -179,7 +179,7 @@ class LearningStats:
     ----------
     training : LearningStat
         `LearningStat` object to manage training statistics.
-    testing : LearningStat
+    testing1 : LearningStat
         `LearningStat` object to manage testing statistics.
     validation : LearningStat
         `LearningStat` object to manage validation statistics.
@@ -341,23 +341,23 @@ class LearningStats:
         acc_plot_exists = False
         if self.training.valid_accuracy_log:
             acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.training.accuracy_log, label='Training')
+            plt.plot(self.training.accuracy_classifier_log, label='Training')
         if self.validation.valid_accuracy_log:
             if acc_plot_exists is False:
                 acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.validation.accuracy_log, label='Validation')
+            plt.plot(self.validation.accuracy_classifier_log, label='Validation')
         if self.testing1.valid_accuracy_log:
             if acc_plot_exists is False:
                 acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.testing1.accuracy_log, label='Testing1')
+            plt.plot(self.testing1.accuracy_classifier_log, label='Testing1')
         if self.testing2.valid_accuracy_log:
             if acc_plot_exists is False:
                 acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.testing2.accuracy_log, label='Testing2')
+            plt.plot(self.testing2.accuracy_classifier_log, label='Testing2')
         if self.testing3.valid_accuracy_log:
             if acc_plot_exists is False:
                 acc_plot_exists = figure_init(figures[1])
-            plt.plot(self.testing3.accuracy_log, label='Testing3')
+            plt.plot(self.testing3.accuracy_classifier_log, label='Testing3')
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
         plt.legend()
