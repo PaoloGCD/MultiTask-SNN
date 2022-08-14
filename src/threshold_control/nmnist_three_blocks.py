@@ -21,7 +21,7 @@ from matplotlib import animation
 
 from src.misc import stats_3blocks, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
+from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -140,7 +140,7 @@ assistant = assistant_3blocks.Assistant(net, error, optimizer, stats, classifier
 print('Training using:', device)
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input, label1, label2) in enumerate(train_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(train_loader):  # training loop
         # set bias according to task
         if np.random.rand() < 0.5:
             # set biases to 1
@@ -178,7 +178,7 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_1
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
         label_task_1 = torch.zeros(input.shape[0], dtype=torch.int64)
         output = assistant.test(input, label1, label_task_1, 1)
 
@@ -195,7 +195,7 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_2
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
         label_task_2 = torch.ones(input.shape[0], dtype=torch.int64)
         output = assistant.test(input, label2, label_task_2, 2)
 

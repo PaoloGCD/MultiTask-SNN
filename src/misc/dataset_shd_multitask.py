@@ -139,8 +139,6 @@ class SHDDataset(Dataset):
         path of dataset root, by default 'data'
     train : bool, optional
         train/test flag, by default True
-    sampling_time : int, optional
-        sampling time of event data, by default 1
     sample_length : int, optional
         length of sample data, by default 300
     transform : None or lambda or fx-ptr, optional

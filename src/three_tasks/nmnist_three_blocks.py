@@ -21,7 +21,7 @@ from matplotlib import animation
 
 from src.misc import stats_3blocks, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_three_tasks import augment, NMNISTDataset
+from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0

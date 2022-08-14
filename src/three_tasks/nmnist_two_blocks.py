@@ -21,7 +21,7 @@ import lava.lib.dl.slayer as slayer
 from matplotlib import animation
 
 from src.misc import stats_2blocks, assistant_2blocks, cuba_multitask
-from src.misc.dataset_nmnist_three_tasks import augment, NMNISTDataset
+from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0

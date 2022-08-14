@@ -21,7 +21,7 @@ from matplotlib import animation
 
 from src.misc import stats_3blocks, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
+from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -140,7 +140,7 @@ assistant = assistant_3blocks.Assistant(net, error, optimizer, stats, classifier
 print('Training using:', device)
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input, label1, label2) in enumerate(train_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(train_loader):  # training loop
         # set bias according to task
         if np.random.rand() < 0.5:
             # set biases to 1
@@ -171,7 +171,7 @@ for epoch in range(epochs):
     print(f'[Epoch {epoch:2d}/{epochs}] Train loss = {train_classifier_loss:0.4f} / {train_task_loss:0.4f} acc = {train_classifier_acc:0.4f} / {train_task_acc:0.4f}', end=' ')
 
     time_test_start = time.time()
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
         # set biases to 0
         for module in net.feature_extraction_block:
             module.neuron.bias = bias_1
@@ -189,7 +189,7 @@ for epoch in range(epochs):
     test1_task_acc = stats.testing1.task_accuracy
     print(f'| Test1 loss = {test1_classifier_loss:0.4f} / {test1_task_loss:0.4f} acc = {test1_classifier_acc:0.4f} / {test1_task_acc:0.4f}', end=' ')
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
         # set biases to 1
         for module in net.feature_extraction_block:
             module.neuron.bias = bias_2

@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
-from src.misc.dataset_nmnist import augment, NMNISTDataset
+from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -112,11 +112,11 @@ assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slay
 
 print('Initializing training')
 for epoch in range(epochs):
-    for i, (input, label) in enumerate(train_loader):  # training loop
+    for i, (input, label, _, _) in enumerate(train_loader):  # training loop
         output = assistant.train(input, label)
     print(f'[Epoch {epoch:2d}/{epochs}] {stats}', end='')
 
-    for i, (input, label) in enumerate(test_loader):  # training loop
+    for i, (input, label, _, _) in enumerate(test_loader):  # training loop
         output = assistant.test(input, label)
     print(f'\r[Epoch {epoch:2d}/{epochs}] {stats}')
 

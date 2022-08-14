@@ -21,7 +21,7 @@ import lava.lib.dl.slayer as slayer
 from matplotlib import animation
 
 from src.misc import stats_2blocks, assistant_2blocks, cuba_multitask
-from src.misc.dataset_nmnist_two_tasks import augment, NMNISTDataset
+from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -127,7 +127,7 @@ assistant = assistant_2blocks.Assistant(net, error, optimizer, stats, classifier
 print('Initializing training')
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input, label1, label2) in enumerate(train_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(train_loader):  # training loop
         # set bias according to task
         if np.random.rand() < 0.5:
             # set biases to value 1
@@ -160,7 +160,7 @@ for epoch in range(epochs):
         layer.neuron.bias = bias_1
 
     # start test 1
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
         output = assistant.test(input, label1, 1)
 
     test1_loss = stats.testing1.loss
@@ -173,7 +173,7 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.bias = bias_2
 
-    for i, (input, label1, label2) in enumerate(test_loader):  # training loop
+    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
         output = assistant.test(input, label2, 2)
     time_test = (time.time() - time_test_start)/60.0
 

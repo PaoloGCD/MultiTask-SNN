@@ -1,7 +1,7 @@
 """
-Multitask NMNIST dataset loading class.
+NMNIST dataset loading class.
 
-Rewritten/modified from https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/dl/slayer/nmnist/
+Rewritten from https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/dl/slayer/nmnist/
 @author: Paolo G. Cachi
 """
 
@@ -10,7 +10,7 @@ import glob
 import zipfile
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 
 import lava.lib.dl.slayer as slayer
 
@@ -111,7 +111,7 @@ https://www.garrickorchard.com/datasets/n-mnist
             torch.zeros(2, 34, 34, self.num_time_bins),
             sampling_time=self.sampling_time,
         )
-        return spike.reshape(-1, self.num_time_bins), label, label % 2 + 10
+        return spike.reshape(-1, self.num_time_bins), label, label % 2 + 10, (label < 5) + 12
 
     def __len__(self):
         return len(self.samples)
