@@ -20,7 +20,7 @@ import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
 
-from src.misc import stats_2blocks, assistant_2blocks, cuba_multitask
+from src.misc import stats_multitask, assistant_2blocks, cuba_multitask
 from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 
 # Get parameters
@@ -76,10 +76,10 @@ class Network(torch.nn.Module):
         ])
 
     def forward(self, spike):
-        for layer in self.feature_extraction_block:
-            spike = layer(spike)
-        for layer in self.label_classification_block:
-            spike = layer(spike)
+        for block in self.feature_extraction_block:
+            spike = block(spike)
+        for block in self.label_classification_block:
+            spike = block(spike)
         return spike
 
     def grad_flow(self, path):
@@ -98,12 +98,12 @@ class Network(torch.nn.Module):
     def export_hdf5(self, filename):
         # network export to hdf5 format
         h = h5py.File(filename, 'w')
-        layer = h.create_group('block_feature_extraction')
-        for i, b in enumerate(self.feature_extraction_block):
-            b.export_hdf5(layer.create_group(f'{i}'))
-        layer = h.create_group('block_label_classification')
-        for i, b in enumerate(self.label_classification_block):
-            b.export_hdf5(layer.create_group(f'{i}'))
+        block = h.create_group('block_feature_extraction')
+        for idx, b in enumerate(self.feature_extraction_block):
+            b.export_hdf5(block.create_group(f'{idx}'))
+        block = h.create_group('block_label_classification')
+        for idx, b in enumerate(self.label_classification_block):
+            b.export_hdf5(block.create_group(f'{idx}'))
 
 
 # device = torch.device('cpu')
@@ -121,13 +121,13 @@ test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
 
 error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').to(device)
 
-stats = stats_2blocks.LearningStats()
-assistant = assistant_2blocks.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+stats = stats_multitask.LearningStatsHandler(number_training_blocks=1, number_tasks=2)
+assistant = assistant_2blocks.Assistant(net, error, optimizer, stats=stats, classifier=slayer.classifier.Rate.predict)
 
-print('Initializing training')
+print('Training (using: %s)' % device)
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input, label1, label2, _) in enumerate(train_loader):  # training loop
+    for i, (input_data, label1, label2, _) in enumerate(train_loader):  # training loop
         # set bias according to task
         if np.random.rand() < 0.5:
             # set biases to value 1
@@ -144,11 +144,11 @@ for epoch in range(epochs):
                 layer.neuron.bias = bias_2
             label = label2
         # train
-        output = assistant.train(input, label)
+        output = assistant.train(input_data, label)
     time_train = (time.time() - time_start)/60.0
 
-    train_loss = stats.training.loss
-    train_acc = stats.training.accuracy
+    train_loss = stats.training.loss[0]
+    train_acc = stats.training.accuracy[0]
     print(f'[Epoch {epoch:2d}/{epochs}] Train loss = {train_loss:0.4f} acc = {train_acc:0.4f}', end=' ')
 
     time_test_start = time.time()
@@ -160,11 +160,11 @@ for epoch in range(epochs):
         layer.neuron.bias = bias_1
 
     # start test 1
-    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
-        output = assistant.test(input, label1, 1)
+    for i, (input_data, label1, label2, _) in enumerate(test_loader):
+        output = assistant.test(input_data, label1, 0)
 
-    test1_loss = stats.testing1.loss
-    test1_acc = stats.testing1.accuracy
+    test1_loss = stats.testing[0].loss[0]
+    test1_acc = stats.testing[0].accuracy[0]
     print(f'| Test1 loss = {test1_loss:0.4f} acc = {test1_acc:0.4f}', end=' ')
 
     # set biases for test 2
@@ -173,39 +173,39 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.bias = bias_2
 
-    for i, (input, label1, label2, _) in enumerate(test_loader):  # training loop
-        output = assistant.test(input, label2, 2)
+    for i, (input_data, label1, label2, _) in enumerate(test_loader):  # training loop
+        output = assistant.test(input_data, label2, 1)
     time_test = (time.time() - time_test_start)/60.0
 
-    test2_loss = stats.testing2.loss
-    test2_acc = stats.testing2.accuracy
+    test2_loss = stats.testing[1].loss[0]
+    test2_acc = stats.testing[1].accuracy[0]
     print(f'| Test2 loss = {test2_loss:0.4f} acc = {test2_acc:0.4f}', end=' ')
     print(f'| Time train = {time_train:2.3f} test = {time_test:2.3f}')
 
-    # if epoch % 20 == 0:  # cleanup display
-    #     print('\r', ' ' * len(f'\r[Epoch {epoch:2d}/{epochs}] {stats}'))
-    #     stats_str = str(stats).replace("| ", "\n")
-    #     print(f'[Epoch {epoch:2d}/{epochs}]\n{stats_str}')
-
-    if stats.testing1.best_accuracy:
+    if stats.testing[0].best_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')
 
-stats.plot(figsize=(15, 5))
+# stats.plot(figsize=(15, 5))
 
 net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
+
+# Save input and output samples
+input_data, _, _, _ = next(iter(train_loader))
 
 # set biases for test 1
 for layer in net.feature_extraction_block:
     layer.neuron.bias = bias_1
 for layer in net.label_classification_block:
     layer.neuron.bias = bias_1
-output = net(input.to(device))
+
+# process data
+output = net(input_data.to(device))
 for i in range(3):
-    inp_event = slayer.io.tensor_to_event(input[i].cpu().data.numpy().reshape(2, 34, 34, -1))
+    inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(2, 34, 34, -1))
     out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 12, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
@@ -217,7 +217,9 @@ for layer in net.feature_extraction_block:
     layer.neuron.bias = bias_2
 for layer in net.label_classification_block:
     layer.neuron.bias = bias_2
-output = net(input.to(device))
+output = net(input_data.to(device))
+
+# process data
 for i in range(3):
     out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 12, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)

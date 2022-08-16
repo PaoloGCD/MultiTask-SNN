@@ -88,8 +88,8 @@ class Network(torch.nn.Module):
         # network export to hdf5 format
         h = h5py.File(filename, 'w')
         layer = h.create_group('layer')
-        for i, b in enumerate(self.blocks):
-            b.export_hdf5(layer.create_group(f'{i}'))
+        for idx, b in enumerate(self.blocks):
+            b.export_hdf5(layer.create_group(f'{idx}'))
 
 
 # device = torch.device('cpu')
@@ -112,12 +112,12 @@ assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slay
 
 print('Initializing training')
 for epoch in range(epochs):
-    for i, (input, label, _, _) in enumerate(train_loader):  # training loop
-        output = assistant.train(input, label)
+    for i, (input_data, label, _, _) in enumerate(train_loader):  # training loop
+        output = assistant.train(input_data, label)
     print(f'[Epoch {epoch:2d}/{epochs}] {stats}', end='')
 
-    for i, (input, label, _, _) in enumerate(test_loader):  # training loop
-        output = assistant.test(input, label)
+    for i, (input_data, label, _, _) in enumerate(test_loader):  # training loop
+        output = assistant.test(input_data, label)
     print(f'\r[Epoch {epoch:2d}/{epochs}] {stats}')
 
     if stats.testing.best_accuracy:
@@ -131,9 +131,12 @@ stats.plot(figsize=(15, 5))
 net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
-output = net(input.to(device))
+# Save input and output samples
+input_data, _, _, _ = next(iter(train_loader))
+
+output = net(input_data.to(device))
 for i in range(5):
-    inp_event = slayer.io.tensor_to_event(input[i].cpu().data.numpy().reshape(2, 34, 34, -1))
+    inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(2, 34, 34, -1))
     out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 10, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)

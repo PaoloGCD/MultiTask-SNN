@@ -31,14 +31,6 @@ class Assistant:
         returns the network prediction. None means regression mode.
         Classification steps are bypassed.
         Defaults to None.
-    count_log : bool
-        flag to enable count log. Defaults to False.
-    lam : float
-        lagrangian to merge network layer based loss.
-        None means no such additional loss.
-        If not None, net is expected to return the accumulated loss as second
-        argument. It is intended to be used with layer wise sparsity loss.
-        Defaults to None.
 
     Attributes
     ----------
@@ -47,8 +39,6 @@ class Assistant:
     optimizer
     stats
     classifier
-    count_log
-    lam
     device : torch.device or None
         the main device memory where network is placed. It is not at start and
         gets initialized on the first call.
@@ -56,16 +46,13 @@ class Assistant:
     def __init__(
         self,
         net, error, optimizer,
-        stats=None, classifier=None, count_log=False,
-        lam=None
+        stats=None, classifier=None
     ):
         self.net = net
         self.error = error
         self.optimizer = optimizer
         self.classifier = classifier
         self.stats = stats
-        self.count_log = count_log
-        self.lam = lam
         self.device = None
 
     def reduce_lr(self, factor=10 / 3):
@@ -84,22 +71,20 @@ class Assistant:
             print('\nLearning rate reduction from', param_group['lr'])
             param_group['lr'] /= factor
 
-    def train(self, input, target):
+    def train(self, input_data, target_label):
         """Training assistant.
 
         Parameters
         ----------
-        input : torch tensor
+        input_data : torch tensor
             input tensor.
-        target : torch tensor
-            ground truth or label.
+        target_label : torch tensor
+            ground truth or label for classification output.
 
         Returns
         -------
         output
             network's output.
-        count : optional
-            spike count if ``count_log`` is enabled
 
         """
         self.net.train()
@@ -110,52 +95,36 @@ class Assistant:
                 break
         device = self.device
 
-        input = input.to(device)
-        target = target.to(device)
+        input_data = input_data.to(device)
+        target_label = target_label.to(device)
 
-        count = None
-        if self.count_log is True:
-            if self.lam is None:
-                output, count = self.net(input)
-            else:
-                output, net_loss, count = self.net(input)
-        else:
-            if self.lam is None:
-                output = self.net(input)
-            else:
-                output, net_loss = self.net(input)
+        output_label = self.net(input_data)
 
-        loss = self.error(output, target)
+        loss = self.error(output_label, target_label)
 
         if self.stats is not None:
-            self.stats.training.num_samples += input.shape[0]
-            self.stats.training.loss_sum += loss.cpu().data.item() \
-                * output.shape[0]
-            if self.classifier is not None:   # classification
-                self.stats.training.correct_samples += torch.sum(
-                    self.classifier(output) == target
-                ).cpu().data.item()
+            self.stats.training.num_samples += input_data.shape[0]
+            self.stats.training.loss_sum[0] += loss.cpu().data.item() * output_label.shape[0]
+            if self.classifier is not None:
+                self.stats.training.correct_samples[0] += torch.sum(torch.eq(self.classifier(output_label), target_label)).cpu().data.item()
 
-        if self.lam is not None:  # add net_loss before backward step
-            loss += self.lam * net_loss
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        if count is None:
-            return output
+        return output_label
 
-        return output, count
-
-    def test(self, input, target, test_number):
+    def test(self, input_data, target_label, test_number):
         """Testing assistant.
 
         Parameters
         ----------
-        input : torch tensor
+        input_data : torch tensor
             input tensor.
-        target : torch tensor
-            ground truth or label.
+        target_label : torch tensor
+            ground truth or label for classification block.
+        test_number : int
+            number of performed test
 
         Returns
         -------
@@ -174,111 +143,17 @@ class Assistant:
         device = self.device
 
         with torch.no_grad():
-            input = input.to(device)
-            target = target.to(device)
+            input_data = input_data.to(device)
+            target_label = target_label.to(device)
 
-            count = None
-            if self.count_log is True:
-                if self.lam is None:
-                    output, count = self.net(input)
-                else:
-                    output, _, count = self.net(input)
-            else:
-                if self.lam is None:
-                    output = self.net(input)
-                else:
-                    output, _ = self.net(input)
+            output_label = self.net(input_data)
 
-            loss = self.error(output, target)
+            loss = self.error(output_label, target_label)
 
-            if test_number == 1:
-                if self.stats is not None:
-                    self.stats.testing1.num_samples += input.shape[0]
-                    self.stats.testing1.loss_sum += loss.cpu().data.item() \
-                        * output.shape[0]
-                    if self.classifier is not None:   # classification
-                        self.stats.testing1.correct_samples += torch.sum(
-                            self.classifier(output) == target
-                        ).cpu().data.item()
+            if self.stats is not None:  # loss
+                self.stats.testing[test_number].num_samples += input_data.shape[0]
+                self.stats.testing[test_number].loss_sum[0] += loss.cpu().data.item() * output_label.shape[0]
+                if self.classifier is not None:
+                    self.stats.testing[test_number].correct_samples[0] += torch.sum(torch.eq(self.classifier(output_label), target_label)).cpu().data.item()
 
-            if test_number == 2:
-                if self.stats is not None:
-                    self.stats.testing2.num_samples += input.shape[0]
-                    self.stats.testing2.loss_sum += loss.cpu().data.item() \
-                        * output.shape[0]
-                    if self.classifier is not None:   # classification
-                        self.stats.testing2.correct_samples += torch.sum(
-                            self.classifier(output) == target
-                        ).cpu().data.item()
-
-            if test_number == 3:
-                if self.stats is not None:
-                    self.stats.testing3.num_samples += input.shape[0]
-                    self.stats.testing3.loss_sum += loss.cpu().data.item() \
-                        * output.shape[0]
-                    if self.classifier is not None:   # classification
-                        self.stats.testing3.correct_samples += torch.sum(
-                            self.classifier(output) == target
-                        ).cpu().data.item()
-
-            if count is None:
-                return output
-
-            return output, count
-
-    def valid(self, input, target):
-        """Validation assistant.
-
-        Parameters
-        ----------
-        input : torch tensor
-            input tensor.
-        target : torch tensor
-            ground truth or label.
-
-        Returns
-        -------
-        output
-            network's output.
-        count : optional
-            spike count if ``count_log`` is enabled
-
-        """
-        self.net.eval()
-
-        with torch.no_grad():
-            device = self.net.device
-            input = input.to(device)
-            target = target.to(device)
-
-            count = None
-            if self.count_log is True:
-                if self.lam is None:
-                    output, count = self.net(input)
-                else:
-                    output, _, count = self.net(input)
-            else:
-                if self.lam is None:
-                    output = self.net(input)
-                else:
-                    output, _ = self.net(input)
-
-            loss = self.error(output, target)
-
-            if self.stats is not None:
-                self.stats.validation.num_samples += input.shape[0]
-                if self.lam is None:
-                    self.stats.validation.loss_sum += loss.cpu().data.item() \
-                        * output.shape[0]
-                else:
-                    self.stats.validation.loss_sum += loss.cpu().data.item() \
-                        * output.shape[0]
-                if self.classifier is not None:   # classification
-                    self.stats.validation.correct_samples += torch.sum(
-                        self.classifier(output) == target
-                    ).cpu().data.item()
-
-            if count is None:
-                return output
-
-            return output, count
+            return output_label

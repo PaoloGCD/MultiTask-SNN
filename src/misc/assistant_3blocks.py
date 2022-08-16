@@ -46,7 +46,7 @@ class Assistant:
     """
     def __init__(
         self,
-        net, error, optimizer,
+        net, error, optimizer, loss_rate=0,
         stats=None, classifier=None
     ):
         self.net = net
@@ -55,6 +55,7 @@ class Assistant:
         self.classifier = classifier
         self.stats = stats
         self.device = None
+        self.loss_rate = loss_rate
 
     def reduce_lr(self, factor=10 / 3):
         """Reduces the learning rate of the optimizer by ``factor``.
@@ -72,12 +73,12 @@ class Assistant:
             print('\nLearning rate reduction from', param_group['lr'])
             param_group['lr'] /= factor
 
-    def train(self, input, target_label, target_task, loss_rate):
+    def train(self, input_data, target_label, target_task):
         """Training assistant.
 
         Parameters
         ----------
-        input : torch tensor
+        input_data : torch tensor
             input tensor.
         target_label : torch tensor
             ground truth or label for classification output.
@@ -98,25 +99,24 @@ class Assistant:
                 break
         device = self.device
 
-        input = input.to(device)
+        input_data = input_data.to(device)
         target_label = target_label.to(device)
         target_task = target_task.to(device)
 
-        output_label, output_task = self.net(input)
+        output_label, output_task = self.net(input_data)
 
         loss_label = self.error(output_label, target_label)
         loss_task = self.error(output_task, target_task)
 
-        loss = (1-loss_rate)*loss_label + loss_rate*loss_task
+        loss = (1-self.loss_rate)*loss_label + self.loss_rate*loss_task
 
         if self.stats is not None:
-            self.stats.training.num_samples += input.shape[0]
-            self.stats.training.loss_sum += loss.cpu().data.item() * output_label.shape[0]
-            self.stats.training.loss_classifier_sum += loss_label.cpu().data.item() * output_label.shape[0]
-            self.stats.training.loss_task_sum += loss_task.cpu().data.item() * output_label.shape[0]
-            if self.classifier is not None:   # classification
-                self.stats.training.correct_classifier_samples += torch.sum(self.classifier(output_label) == target_label).cpu().data.item()
-                self.stats.training.correct_task_samples += torch.sum(self.classifier(output_task) == target_task).cpu().data.item()
+            self.stats.training.num_samples += input_data.shape[0]
+            self.stats.training.loss_sum[0] += loss_label.cpu().data.item() * output_label.shape[0]
+            self.stats.training.loss_sum[1] += loss_task.cpu().data.item() * output_task.shape[0]
+            if self.classifier is not None:
+                self.stats.training.correct_samples[0] += torch.sum(torch.eq(self.classifier(output_label), target_label)).cpu().data.item()
+                self.stats.training.correct_samples[1] += torch.sum(torch.eq(self.classifier(output_task), target_task)).cpu().data.item()
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -124,15 +124,19 @@ class Assistant:
 
         return output_label, output_task
 
-    def test(self, input, target_label, target_task, test_number):
+    def test(self, input_data, target_label, target_task, test_number):
         """Testing assistant.
 
         Parameters
         ----------
-        input : torch tensor
+        input_data : torch tensor
             input tensor.
-        target : torch tensor
-            ground truth or label.
+        target_label : torch tensor
+            ground truth or label for classification block.
+        target_task : torch tensor
+            ground truth or label for task block.
+        test_number : int
+            number of performed test
 
         Returns
         -------
@@ -151,46 +155,21 @@ class Assistant:
         device = self.device
 
         with torch.no_grad():
-            input = input.to(device)
+            input_data = input_data.to(device)
             target_label = target_label.to(device)
             target_task = target_task.to(device)
 
-            output_label, output_task = self.net(input)
+            output_label, output_task = self.net(input_data)
 
             loss_label = self.error(output_label, target_label)
             loss_task = self.error(output_task, target_task)
 
-            loss = loss_label + loss_task
-
-            if self.stats is not None and test_number == 1:
-                self.stats.testing1.num_samples += input.shape[0]
-                self.stats.testing1.loss_sum += loss.cpu().data.item() * output_label.shape[0]
-                self.stats.testing1.loss_classifier_sum += loss_label.cpu().data.item() * output_label.shape[0]
-                self.stats.testing1.loss_task_sum += loss_task.cpu().data.item() * output_label.shape[0]
+            if self.stats is not None:  # loss
+                self.stats.testing[test_number].num_samples += input_data.shape[0]
+                self.stats.testing[test_number].loss_sum[0] += loss_label.cpu().data.item() * output_label.shape[0]
+                self.stats.testing[test_number].loss_sum[1] += loss_task.cpu().data.item() * output_task.shape[0]
                 if self.classifier is not None:   # classification
-                    self.stats.testing1.correct_classifier_samples += torch.sum(
-                        self.classifier(output_label) == target_label).cpu().data.item()
-                    self.stats.testing1.correct_task_samples += torch.sum(
-                        self.classifier(output_task) == target_task).cpu().data.item()
-            if self.stats is not None and test_number == 2:
-                self.stats.testing2.num_samples += input.shape[0]
-                self.stats.testing2.loss_sum += loss.cpu().data.item() * output_label.shape[0]
-                self.stats.testing2.loss_classifier_sum += loss_label.cpu().data.item() * output_label.shape[0]
-                self.stats.testing2.loss_task_sum += loss_task.cpu().data.item() * output_label.shape[0]
-                if self.classifier is not None:  # classification
-                    self.stats.testing2.correct_classifier_samples += torch.sum(
-                        self.classifier(output_label) == target_label).cpu().data.item()
-                    self.stats.testing2.correct_task_samples += torch.sum(
-                        self.classifier(output_task) == target_task).cpu().data.item()
-            if self.stats is not None and test_number == 3:
-                self.stats.testing3.num_samples += input.shape[0]
-                self.stats.testing3.loss_sum += loss.cpu().data.item() * output_label.shape[0]
-                self.stats.testing3.loss_classifier_sum += loss_label.cpu().data.item() * output_label.shape[0]
-                self.stats.testing3.loss_task_sum += loss_task.cpu().data.item() * output_label.shape[0]
-                if self.classifier is not None:  # classification
-                    self.stats.testing3.correct_classifier_samples += torch.sum(
-                        self.classifier(output_label) == target_label).cpu().data.item()
-                    self.stats.testing3.correct_task_samples += torch.sum(
-                        self.classifier(output_task) == target_task).cpu().data.item()
+                    self.stats.testing[test_number].correct_samples[0] += torch.sum(torch.eq(self.classifier(output_label), target_label)).cpu().data.item()
+                    self.stats.testing[test_number].correct_samples[1] += torch.sum(torch.eq(self.classifier(output_task), target_task)).cpu().data.item()
 
             return output_label, output_task
