@@ -116,7 +116,7 @@ class Network(torch.nn.Module):
             b.export_hdf5(block.create_group(f'{idx}'))
         block = h.create_group('block_task_classification')
         for idx, b in enumerate(self.label_task_block):
-            b.export_hdf5(layer.create_group(f'{idx}'))
+            b.export_hdf5(block.create_group(f'{idx}'))
 
 
 # device = torch.device('cpu')

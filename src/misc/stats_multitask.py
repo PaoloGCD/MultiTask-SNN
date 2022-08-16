@@ -333,8 +333,8 @@ class LearningStatsHandler:
 
             loss.write(f'#{header}\r\n')
 
-            entry = ''
             for idx in range(len(self.training.loss_log)):
+                entry = ''
                 for block_idx in range(self.number_training_blocks):
                     training_value = self.training.loss_log[idx][block_idx]
                     entry += '' if training_value is None else f'{training_value:12.6f} '
@@ -380,8 +380,8 @@ class LearningStatsHandler:
 
             accuracy.write(f'#{header}\r\n')
 
-            entry = ''
             for idx in range(len(self.training.accuracy_log)):
+                entry = ''
                 for block_idx in range(self.number_training_blocks):
                     training_value = self.training.accuracy_log[idx][block_idx]
                     entry += '' if training_value is None else f'{training_value:12.6f} '

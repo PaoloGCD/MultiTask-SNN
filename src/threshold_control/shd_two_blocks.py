@@ -195,7 +195,7 @@ net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
 # Save input and output samples
-input_data, _, _, _ = next(iter(train_loader))
+input_data, _, _ = next(iter(train_loader))
 
 # set threshold for test 1
 for layer in net.feature_extraction_block:
