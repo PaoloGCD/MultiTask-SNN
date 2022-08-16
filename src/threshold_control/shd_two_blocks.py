@@ -206,8 +206,8 @@ for layer in net.label_classification_block:
 # process data
 output = net(input_data.to(device))
 for i in range(3):
-    inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(2, 34, 34, -1))
-    out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 12, -1))
+    inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(1, 28, 25, -1))
+    out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 20, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     inp_anim.save(f'{result_path}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
@@ -222,7 +222,7 @@ for layer in net.label_classification_block:
 # process data
 output = net(input_data.to(device))
 for i in range(3):
-    out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 12, -1))
+    out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 20, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     out_anim.save(f'{result_path}/out2-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
 
