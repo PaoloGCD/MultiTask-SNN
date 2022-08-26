@@ -1,0 +1,5 @@
+<params>
+    <threshold_1> 1.25 </threshold_1>
+    <epochs> 100 </epochs>
+    <sample_length> 300 </sample_length>
+</params>

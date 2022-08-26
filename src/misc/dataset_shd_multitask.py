@@ -199,7 +199,7 @@ class SHDDataset(Dataset):
         X_batch = torch.sparse_coo_tensor(i, v, torch.Size([700, self.sample_length])).to_dense()
         y_batch = torch.tensor(self.labels_[idx])
 
-        return X_batch, y_batch, y_batch % 10 + 10
+        return X_batch, y_batch, y_batch % 10 + 20
 
     def __len__(self):
         return len(self.firing_times)
