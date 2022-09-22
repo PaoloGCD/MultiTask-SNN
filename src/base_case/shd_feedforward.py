@@ -67,7 +67,8 @@ class Network(torch.nn.Module):
         self.blocks = torch.nn.ModuleList([
             cuba_multitask.Dense(neuron_params_drop, 700, 256, weight_norm=True, delay=True),
             cuba_multitask.Dense(neuron_params_drop, 256, 128, weight_norm=True, delay=True),
-            cuba_multitask.Dense(neuron_params, 128, 30, weight_norm=True)
+            cuba_multitask.Dense(neuron_params_drop, 128, 64, weight_norm=True, delay=True),
+            cuba_multitask.Dense(neuron_params, 64, 20, weight_norm=True)
         ])
 
     def forward(self, spike):
@@ -136,7 +137,7 @@ for epoch in range(epochs):
     print(f'| Test loss = {test1_loss:0.4f} acc = {test1_acc:0.4f}', end=' ')
     print(f'| Time train = {time_train:2.3f} test = {time_test:2.3f}')
 
-    if stats.testing[0].best_accuracy:
+    if stats.testing.best_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
     stats.update()
     stats.save(result_path + '/')
@@ -149,12 +150,6 @@ net.export_hdf5(result_path + '/network.net')
 
 # Save input and output samples
 input_data, _, _ = next(iter(train_loader))
-
-# set threshold for test 1
-for layer in net.feature_extraction_block:
-    layer.neuron.threshold = threshold_1
-for layer in net.label_classification_block:
-    layer.neuron.threshold = threshold_1
 
 # process data
 output = net(input_data.to(device))

@@ -67,12 +67,13 @@ class Network(torch.nn.Module):
         neuron_params_drop = {**neuron_params, 'dropout': slayer.neuron.Dropout(p=0.05), 'bias': 0}
 
         self.feature_extraction_block = torch.nn.ModuleList([
-            cuba_multitask.Dense(neuron_params_drop, 700, 256, weight_norm=True, delay=True)
+            cuba_multitask.Dense(neuron_params_drop, 700, 256, weight_norm=True, delay=True),
+            cuba_multitask.Dense(neuron_params_drop, 256, 128, weight_norm=True, delay=True)
         ])
 
         self.label_classification_block = torch.nn.ModuleList([
-            cuba_multitask.Dense(neuron_params_drop, 256, 128, weight_norm=True, delay=True),
-            cuba_multitask.Dense(neuron_params, 128, 30, weight_norm=True)
+            cuba_multitask.Dense(neuron_params_drop, 128, 64, weight_norm=True, delay=True),
+            cuba_multitask.Dense(neuron_params, 64, 30, weight_norm=True)
         ])
 
     def forward(self, spike):
