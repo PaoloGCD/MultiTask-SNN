@@ -6,6 +6,7 @@ Rewritten from https://github.com/lava-nc/lava-dl/blob/main/tutorials/lava/lib/d
 """
 
 import os
+import copy
 import glob
 import zipfile
 import numpy as np
@@ -96,15 +97,22 @@ https://www.garrickorchard.com/datasets/n-mnist
                 f'https://www.garrickorchard.com/datasets/n-mnist ' \
                 f'to {data_path}/'
 
-        self.samples = glob.glob(f'{data_path}/*/*.bin')
+        samples = glob.glob(f'{data_path}/*/*.bin')
+
+        self.label_list = []
+        self.event_list = []
+        for filename in samples:
+            self.label_list.append(int(filename.split('/')[-2]))
+            event = slayer.io.read_2d_spikes(filename)
+            self.event_list.append(event)
+
         self.sampling_time = sampling_time
         self.num_time_bins = int(sample_length / sampling_time)
         self.transform = transform
 
     def __getitem__(self, i):
-        filename = self.samples[i]
-        label = int(filename.split('/')[-2])
-        event = slayer.io.read_2d_spikes(filename)
+        label = self.label_list[i]
+        event = copy.deepcopy(self.event_list[i])
         if self.transform is not None:
             event = self.transform(event)
         spike = event.fill_tensor(
@@ -114,4 +122,4 @@ https://www.garrickorchard.com/datasets/n-mnist
         return spike.reshape(-1, self.num_time_bins), label, label % 2 + 10, (label < 5) + 12
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.label_list)
