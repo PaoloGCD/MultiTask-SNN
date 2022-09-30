@@ -79,7 +79,7 @@ class Network(torch.nn.Module):
         ])
 
         self.label_task_block = torch.nn.ModuleList([
-            cuba_multitask.Dense(neuron_params, 512, 2, weight_norm=True)
+            cuba_multitask.Dense(neuron_params, 128, 2, weight_norm=True)
         ])
 
     def forward(self, spike):
