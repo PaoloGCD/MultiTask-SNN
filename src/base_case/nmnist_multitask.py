@@ -133,7 +133,7 @@ test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
 
 error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').to(device)
 
-stats = stats_multitask.LearningStatsHandler(number_training_blocks=2, number_tasks=1)
+stats = stats_multitask.LearningStatsHandler(number_output_blocks=2, number_tests=1)
 classifier = slayer.classifier.Rate.predict
 
 print('Training (using: %s)' % device)

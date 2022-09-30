@@ -146,15 +146,15 @@ class LearningStatsHandler:
     validation : LearningStat
         `LearningStat` object to manage validation statistics.
     """
-    def __init__(self, number_tasks=1, number_training_blocks=1):
-        self.number_tasks = number_tasks
-        self.number_training_blocks = number_training_blocks
+    def __init__(self, number_tests=1, number_output_blocks=1):
+        self.number_tests = number_tests
+        self.number_training_blocks = number_output_blocks
 
         self.lines_printed = 0
 
-        self.training = LearningStat(number_training_blocks)
-        self.validation = [LearningStat(number_training_blocks) for i in range(number_tasks)]
-        self.testing = [LearningStat(number_training_blocks) for i in range(number_tasks)]
+        self.training = LearningStat(number_output_blocks)
+        self.validation = [LearningStat(number_output_blocks) for i in range(number_tests)]
+        self.testing = [LearningStat(number_output_blocks) for i in range(number_tests)]
 
     def update(self):
         """Update all the stats. Typically called at the end of epoch."""
