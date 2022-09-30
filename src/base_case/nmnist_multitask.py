@@ -40,8 +40,9 @@ with open(parameters_path) as fd:
 
 epochs = int(params['params']['epochs'])
 
-result_path = f'results/Threshold-NMNIST-three-blocks-{experiment_number:02d}'
+result_path = f'results/NMNIST-multitask-{experiment_number:02d}'
 os.makedirs(result_path, exist_ok=True)
+print(result_path)
 
 with open(result_path + '/parameters.xml', 'w') as param_file:
     param_file.write(xmltodict.unparse(params))
@@ -229,7 +230,7 @@ for i in range(3):
     out2_event = slayer.io.tensor_to_event(output_task2[i].cpu().data.numpy().reshape(1, 2, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out1_anim = out1_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
-    out2_anim = out1_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
+    out2_anim = out2_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     inp_anim.save(f'{result_path}/inp.gif', animation.PillowWriter(fps=24), dpi=300)
     out1_anim.save(f'{result_path}/out1.gif', animation.PillowWriter(fps=24), dpi=300)
     out2_anim.save(f'{result_path}/out2.gif', animation.PillowWriter(fps=24), dpi=300)
