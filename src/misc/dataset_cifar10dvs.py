@@ -3,10 +3,13 @@ import sys
 import struct
 import glob
 import numpy as np
+from multiprocessing import Pool
 
 from torch.utils.data import Dataset
 import torch
 import pickle
+
+import lava.lib.dl.slayer as slayer
 
 
 # The functions used in this file to download the dataset are based on
@@ -14,16 +17,38 @@ import pickle
 # https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/utils/data_utils.py
 
 
+def augment(event):
+    x_shift = 16
+    y_shift = 16
+    theta = 10
+    xjitter = np.random.randint(2 * x_shift) - x_shift
+    yjitter = np.random.randint(2 * y_shift) - y_shift
+    ajitter = (np.random.rand() - 0.5) * theta / 180 * 3.141592654
+    sin_theta = np.sin(ajitter)
+    cos_theta = np.cos(ajitter)
+    event.x = event.x * cos_theta - event.y * sin_theta + xjitter
+    event.y = event.x * sin_theta + event.y * cos_theta + yjitter
+    return event
+
+
 class CIFAR10DVSDataset(Dataset):
 
     def __init__(
-            self, train=True, path='data/CIFAR10-DVS', sub_path='/data',
-            sample_length=300
+            self,
+            train=True,
+            path='data/CIFAR10-DVS',
+            sub_path='/data',
+            input_size=128,
+            output_size=48,
+            time_steps=300,
+            codification='time',
+            keep_value=True,
+            transform=None
     ):
         super(CIFAR10DVSDataset, self).__init__()
 
         self.data_path = path + sub_path
-        self.sample_length = sample_length
+        self.time_steps = time_steps
 
         self.label_names = {
             'airplane': 0,
@@ -45,6 +70,11 @@ class CIFAR10DVSDataset(Dataset):
         self.pol_mask = int('1', 16)
         self.x_shift = 1
         self.y_shift = 8
+
+        self.input_size = input_size
+        self.output_size = output_size
+
+        self.transform = transform
 
         if train:
             data_index_filename = self.data_path + '/train_data_index.pkl'
@@ -78,12 +108,17 @@ class CIFAR10DVSDataset(Dataset):
                 y_address = np.right_shift(np.bitwise_and(address_packets, self.y_mask), self.y_shift)
                 polarity = 1 - np.bitwise_and(address_packets, self.pol_mask)
 
-                x_address = (x_address / 4).astype('int64')
-                y_address = (y_address / 4).astype('int64')
+                x_address = (x_address * output_size / input_size).astype('int64')
+                y_address = (y_address * output_size / input_size).astype('int64')
 
-                time_packets = time_packets - time_packets[0]
-                time_bins = np.linspace(0, time_packets[-1], num=self.sample_length)
-                times = np.digitize(time_packets, time_bins) - 1
+                times = np.arange(number_events)
+                if codification == 'time':
+                    time_packets = time_packets - time_packets[0]
+                    time_bins = np.linspace(0, time_packets[-1] + 1, num=self.time_steps + 1)
+                    times = np.digitize(time_packets, time_bins) - 1
+                elif codification == 'event':
+                    elements_per_bin = int((number_events+self.time_steps-1)/self.time_steps)
+                    times = (np.arange(number_events)/elements_per_bin).astype(int)
 
                 coo = [[], [], [], []]
 
@@ -95,10 +130,18 @@ class CIFAR10DVSDataset(Dataset):
                 i = torch.LongTensor(coo)
                 v = torch.FloatTensor(np.ones(len(coo[0])))
 
-                data_tensor = torch.sparse_coo_tensor(i, v, torch.Size([2, 32, 32, self.sample_length])).to_dense()
-                data_tensor = (data_tensor > 0.5).float()
+                data_tensor = torch.sparse_coo_tensor(i, v, torch.Size([2, output_size, output_size, time_steps]))
+                data_tensor = data_tensor.to_dense()
 
-                torch.save(data_tensor, self.data_path + '/%d.pt' % idx)
+                if not keep_value:
+                    data_tensor = (data_tensor > 0.5).float()
+
+                data_event = slayer.io.tensor_to_event(data_tensor)
+
+                with open(self.data_path + '/%d.pt' % idx, 'wb') as file:
+                    pickle.dump(data_event, file)
+
+                # torch.save(data_tensor, self.data_path + '/%d.pt' % idx)
 
                 # data_indices = torch.nonzero(data_tensor).t()
                 # torch.save(data_indices, self.data_path + '/%d.pt' % idx)
@@ -114,8 +157,8 @@ class CIFAR10DVSDataset(Dataset):
             train_data_index = []
             test_data_index = []
             for i in range(10):
-                class_train_index = np.arange(len(raw_sample_files))[all_labels == i][:800]
-                class_test_index = np.arange(len(raw_sample_files))[all_labels == i][800:]
+                class_train_index = np.arange(len(raw_sample_files))[all_labels == i][:900]
+                class_test_index = np.arange(len(raw_sample_files))[all_labels == i][900:]
                 train_data_index.extend(class_train_index.tolist())
                 test_data_index.extend(class_test_index.tolist())
 
@@ -159,10 +202,63 @@ class CIFAR10DVSDataset(Dataset):
         # v = torch.FloatTensor(np.ones(len(coo[0])))
         #
         # X_batch = torch.sparse_coo_tensor(coo, v, torch.Size([2, 32, 32, self.sample_length])).to_dense()
-        X_batch = torch.load(self.data_path + '/%d.pt' % data_index)
+        # X_batch = torch.load(self.data_path + '/%d.pt' % data_index)
+
+        with open(self.data_path + '/%d.pt' % data_index, 'rb') as file:
+            event = pickle.load(file)
+
+        if self.transform is not None:
+            event = self.transform(event)
+
+        # spike = event.fill_tensor(
+        #     torch.zeros(2, self.output_size, self.output_size, self.time_steps),
+        #     sampling_time=1,
+        # )
+
+        # Event to tensor
+        spike_tensor = torch.zeros(2, self.output_size, self.output_size, self.time_steps)
+
+        t_start = 0
+        x_event = np.round(event.x).astype(int)
+        c_event = np.round(event.c).astype(int)
+        t_event = np.round(event.t / 1).astype(int) - t_start
+        payload = event.p
+        binning_mode = 'SUM'
+
+        y_event = np.round(event.y).astype(int)
+        valid_ind = np.argwhere(
+            (x_event < spike_tensor.shape[2])
+            & (y_event < spike_tensor.shape[1])
+            & (c_event < spike_tensor.shape[0])
+            & (t_event < spike_tensor.shape[3])
+            & (x_event >= 0)
+            & (y_event >= 0)
+            & (c_event >= 0)
+            & (t_event >= 0)
+        )
+
+        if binning_mode.upper() == 'OR':
+            spike_tensor[
+                c_event[valid_ind],
+                y_event[valid_ind],
+                x_event[valid_ind],
+                t_event[valid_ind]
+            ] = payload[valid_ind]
+        elif binning_mode.upper() == 'SUM':
+            spike_tensor[
+                c_event[valid_ind],
+                y_event[valid_ind],
+                x_event[valid_ind],
+                t_event[valid_ind]
+            ] += payload[valid_ind]
+        else:
+            raise Exception(
+                'Unsupported binning_mode. It was {binning_mode}'
+            )
+
         y_batch = torch.tensor(label)
 
-        return X_batch, y_batch
+        return spike_tensor, y_batch
 
     def __len__(self):
         return len(self.data)
