@@ -101,7 +101,7 @@ class MNISTDataset(Dataset):
         X_batch = torch.sparse_coo_tensor(i, v, torch.Size([self.number_units, self.sample_length])).to_dense()
         y_batch = torch.tensor(self.labels_[idx])
 
-        return X_batch, y_batch, y_batch % 2 + 10, (y_batch < 5) + 12
+        return X_batch, y_batch, y_batch % 2 + 10, (y_batch < 5) + 12, y_batch % 2 + 14
 
     def __len__(self):
         return len(self.firing_times)
