@@ -146,7 +146,7 @@ class Neuron(torch.nn.Module):
 
         if norm is not None:
             if self.complex is False:
-                self.norm = norm()
+                self.norm = norm
                 if hasattr(self.norm, 'pre_hook_fx'):
                     self.norm.pre_hook_fx = self.quantize_8bit
             else:
