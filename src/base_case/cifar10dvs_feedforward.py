@@ -66,7 +66,7 @@ class Network(torch.nn.Module):
 
         self.blocks = torch.nn.ModuleList([
             slayer.block.cuba.Flatten(),
-            slayer.block.cuba.Dense(neuron_params_drop, 32*32*2, 512, weight_norm=True, delay=True),
+            slayer.block.cuba.Dense(neuron_params_drop, 34*34*2, 512, weight_norm=True, delay=True),
             slayer.block.cuba.Dense(neuron_params_drop, 512, 512, weight_norm=True, delay=True),
             slayer.block.cuba.Dense(neuron_params_drop, 512, 128, weight_norm=True, delay=True),
             slayer.block.cuba.Dense(neuron_params, 128, 10, weight_norm=True),
@@ -103,8 +103,8 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = CIFAR10DVSDataset(train=True, path=data_path, sample_length=300)
-testing_set = CIFAR10DVSDataset(train=False, path=data_path, sample_length=300)
+training_set = CIFAR10DVSDataset(train=True, path=data_path, time_steps=300)
+testing_set = CIFAR10DVSDataset(train=False, path=data_path, time_steps=300)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
 test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
@@ -119,12 +119,17 @@ for epoch in range(epochs):
     time_start = time.time()
     for i, (input_data, label) in enumerate(train_loader):  # training loop
         output = assistant.train(input_data, label)
-    print(f'[Epoch {epoch:2d}/{epochs}] {stats}', end='')
+    print(f'[Epoch {epoch:2d}/{epochs}] Train '
+          f'loss = {stats.training.loss:0.4f} '
+          f'acc = {stats.training.accuracy:0.4f}', end=' ')
 
     for i, (input_data, label) in enumerate(test_loader):  # training loop
         output = assistant.test(input_data, label)
     time_total = (time.time() - time_start) / 60.0
-    print(f'\r[Epoch {epoch:2d}/{epochs}] {stats}', end='')
+    print(f'| Test '
+          f'loss = {stats.testing.loss:0.4f} '
+          f'acc = {stats.testing.accuracy:0.4f} ', end=' ')
+
     print(f'| Time = {time_total:2.3f}')
 
     if stats.testing.best_accuracy:
@@ -132,6 +137,10 @@ for epoch in range(epochs):
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')
+
+print()
+print('max train acc', stats.training.max_accuracy)
+print('max test acc', stats.testing.max_accuracy)
 
 stats.plot(figsize=(15, 5))
 
