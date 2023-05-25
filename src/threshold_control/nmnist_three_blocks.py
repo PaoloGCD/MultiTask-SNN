@@ -27,6 +27,7 @@ from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
 experiment_number = 0
 parameters_path = "../../params/threshold-three-blocks.xml"
 data_path = "../../data/NMNIST"
+gpu_number = 0
 if len(sys.argv) == 3:
     parameters_path = str(sys.argv[1])
     data_path = str(sys.argv[2])
@@ -34,6 +35,11 @@ elif len(sys.argv) == 4:
     parameters_path = str(sys.argv[1])
     data_path = str(sys.argv[2])
     experiment_number = int(sys.argv[3])
+elif len(sys.argv) == 5:
+    parameters_path = str(sys.argv[1])
+    data_path = str(sys.argv[2])
+    experiment_number = int(sys.argv[3])
+    gpu_number = int(sys.argv[4])
 
 with open(parameters_path) as fd:
     params = xmltodict.parse(fd.read())
@@ -120,7 +126,7 @@ class Network(torch.nn.Module):
 
 
 # device = torch.device('cpu')
-device = torch.device('cuda')
+device = torch.device('cuda:%d' % gpu_number)
 
 net = Network().to(device)
 
