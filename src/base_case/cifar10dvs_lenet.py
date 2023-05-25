@@ -21,9 +21,10 @@ import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
 from src.misc.dataset_cifar10dvs import CIFAR10DVSDataset
+from src.misc.dataset_nmnist import augment, NMNISTDataset
 
 # Get parameters
-experiment_number = 0
+experiment_number = 20
 parameters_path = "../../params/base_case.xml"
 data_path = "../../data/CIFAR10-DVS"
 if len(sys.argv) == 3:
@@ -68,7 +69,7 @@ class Network(torch.nn.Module):
             slayer.block.cuba.Conv(neuron_params_drop, 6, 16, 5, weight_norm=True, delay=True, padding=2),
             slayer.block.cuba.Pool(neuron_params_drop, 2, weight_norm=True, delay=True),
             slayer.block.cuba.Flatten(),
-            slayer.block.cuba.Dense(neuron_params_drop, 1024, 256, weight_norm=True, delay=True),
+            slayer.block.cuba.Dense(neuron_params_drop, 1296, 256, weight_norm=True, delay=True),
             slayer.block.cuba.Dense(neuron_params_drop, 256, 128, weight_norm=True, delay=True),
             slayer.block.cuba.Dense(neuron_params, 128, 10, weight_norm=True),
         ])
@@ -76,6 +77,7 @@ class Network(torch.nn.Module):
     def forward(self, spike):
         for block in self.blocks:
             spike = block(spike)
+            # print("%11.3f" % spike.min().item(), "%11.3f" % spike.max().item(), "%11.3f" % spike.mean().item(), "%11.3f" % spike.std().item(), "%15.3f" % spike.sum().item())
         return spike
 
     def grad_flow(self, path):
@@ -89,6 +91,9 @@ class Network(torch.nn.Module):
 
         return grad
 
+    def get_grad_flow(self):
+        return [b.synapse.grad_norm for b in self.blocks if hasattr(b, 'synapse')]
+
     def export_hdf5(self, filename):
         # network export to hdf5 format
         h = h5py.File(filename, 'w')
@@ -98,14 +103,14 @@ class Network(torch.nn.Module):
 
 
 # device = torch.device('cpu')
-device = torch.device('cuda')
+device = torch.device('cuda:5')
 
 net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = CIFAR10DVSDataset(train=True, path=data_path, sample_length=300)
-testing_set = CIFAR10DVSDataset(train=False, path=data_path, sample_length=300)
+training_set = CIFAR10DVSDataset(train=True, path=data_path, sub_path='/300frames34sizeTime', time_steps=300, output_size=34, codification='time', keep_value=False)
+testing_set = CIFAR10DVSDataset(train=False, path=data_path, sub_path='/300frames34sizeTime', time_steps=300, output_size=34, codification='time', keep_value=False)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
 test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
@@ -115,17 +120,40 @@ error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').t
 stats = slayer.utils.LearningStats()
 assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
 
+# Debug
+print('Initializing debug')
+input_data, label = next(iter(train_loader))
+for epoch in range(200):
+    time_start = time.time()
+    output = assistant.train(input_data, label)
+    if epoch % 1 == 0:
+        weight_grad = net.get_grad_flow()
+        print("%05d" % epoch, end=' ')
+        print("[", "%.12f" % weight_grad[0], "%.12f" % weight_grad[1], "%.12f" % weight_grad[2],
+              "%.12f" % weight_grad[3], "%.12f" % weight_grad[4], "%.12f" % weight_grad[5],
+              "%.12f" % weight_grad[6], "]", end=' ')
+    # Debug
+    print(f' {output.sum().item():5.0f} {stats.training.loss:8.4f} {stats.training.accuracy:8.4f}')
+    stats.update()
+
 print('Initializing training')
 for epoch in range(epochs):
     time_start = time.time()
     for i, (input_data, label) in enumerate(train_loader):  # training loop
         output = assistant.train(input_data, label)
-    print(f'[Epoch {epoch:2d}/{epochs}] {stats}', end='')
+
+    print(f'[Epoch {epoch:2d}/{epochs}] Train '
+          f'loss = {stats.training.loss:0.4f} '
+          f'acc = {stats.training.accuracy:0.4f}', end=' ')
 
     for i, (input_data, label) in enumerate(test_loader):  # training loop
         output = assistant.test(input_data, label)
     time_total = (time.time() - time_start) / 60.0
-    print(f'\r[Epoch {epoch:2d}/{epochs}] {stats}', end='')
+
+    print(f'| Test '
+          f'loss = {stats.testing.loss:0.4f} '
+          f'acc = {stats.testing.accuracy:0.4f} ', end=' ')
+
     print(f'| Time = {time_total:2.3f}')
 
     if stats.testing.best_accuracy:
@@ -133,6 +161,10 @@ for epoch in range(epochs):
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')
+
+print()
+print('max train acc', stats.training.max_accuracy)
+print('max test acc', stats.testing.max_accuracy)
 
 stats.plot(figsize=(15, 5))
 
@@ -144,7 +176,7 @@ input_data, _ = next(iter(train_loader))
 
 output = net(input_data.to(device))
 for i in range(5):
-    inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(2, 32, 32, -1))
+    inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(2, 48, 48, -1))
     out_event = slayer.io.tensor_to_event(output[i].cpu().data.numpy().reshape(1, 10, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
