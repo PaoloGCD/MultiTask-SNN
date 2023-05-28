@@ -28,7 +28,7 @@ experiment_number = 0
 parameters_path = "../../params/base_case.xml"
 data_path = "../../data/CIFAR10-DVS"
 gpu_number = 0
-debug = 1
+debug = 0
 weight_norm = True
 if len(sys.argv) == 3:
     parameters_path = str(sys.argv[1])
@@ -198,7 +198,8 @@ test_loader = DataLoader(dataset=testing_set, batch_size=16, shuffle=True)
 error = slayer.loss.SpikeRate(true_rate=1.0, false_rate=0.03, reduction='sum').to(device)
 
 stats = slayer.utils.LearningStats()
-assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+classifier = slayer.classifier.Rate.predict
+assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=classifier)
 
 # Debug
 if debug:
@@ -235,8 +236,13 @@ for epoch in range(epochs):
 
     scheduler.step()
 
+    target_label_list = []
+    predicted_label_list = []
     for i, (input_data, label) in enumerate(test_loader):
         output = assistant.test(input_data, label)
+        predicted_label = classifier(output)
+        target_label_list.extend(label.tolist())
+        predicted_label_list.extend(predicted_label.tolist())
     time_total = (time.time() - time_start) / 60.0
 
     print(f'| Test '
@@ -247,6 +253,8 @@ for epoch in range(epochs):
 
     if stats.testing.best_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
+        torch.save(target_label_list, result_path + '/target_label.pt')
+        torch.save(predicted_label_list, result_path + '/predicted_label.pt')
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')

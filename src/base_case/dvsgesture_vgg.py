@@ -28,7 +28,7 @@ experiment_number = 0
 parameters_path = "../../params/base_case.xml"
 data_path = "../../data/DVS-Gesture128"
 gpu_number = 0
-debug = 1
+debug = 0
 weight_norm = True
 if len(sys.argv) == 3:
     parameters_path = str(sys.argv[1])
@@ -71,7 +71,7 @@ class Network(torch.nn.Module):
             'threshold': 1.25,
             'voltage_decay': 0.5,
             'tau_grad': 0.01,
-            'scale_grad': 10,
+            'scale_grad': 3,
             'requires_grad': True,
         }
         neuron_batch_norm = {**neuron_params, 'norm': torch.nn.BatchNorm3d, }
@@ -85,11 +85,11 @@ class Network(torch.nn.Module):
             torch.nn.MaxPool3d((2, 2, 1), stride=(2, 2, 1)),
             lif_multitask.Conv(neuron_batch_norm, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
             torch.nn.MaxPool3d((2, 2, 1), stride=(2, 2, 1)),
-            lif_multitask.Conv(neuron_batch_norm, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
+            lif_multitask.Conv(neuron_params_norm_drop, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
             torch.nn.MaxPool3d((2, 2, 1), stride=(2, 2, 1)),
-            lif_multitask.Conv(neuron_batch_norm, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
+            lif_multitask.Conv(neuron_params_norm_drop, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
             torch.nn.MaxPool3d((2, 2, 1), stride=(2, 2, 1)),
-            lif_multitask.Conv(neuron_batch_norm, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
+            lif_multitask.Conv(neuron_params_norm_drop, 128, 128, 3, weight_norm=weight_norm, delay=False, padding=1),
             torch.nn.MaxPool3d((2, 2, 1), stride=(2, 2, 1)),
             slayer.block.cuba.Flatten(),
 
@@ -166,7 +166,8 @@ training_set = DVSGesture128Dataset(train=True,
                                     time_steps=20,
                                     output_size=128,
                                     codification='time',
-                                    keep_value=True)
+                                    keep_value=True,
+                                    transform=augment)
 testing_set = DVSGesture128Dataset(train=False,
                                    path=data_path,
                                    sub_path='/20frames128sizeTimeValueT',
@@ -181,7 +182,8 @@ test_loader = DataLoader(dataset=testing_set, batch_size=16, shuffle=True)
 error = slayer.loss.SpikeRate(true_rate=1.0, false_rate=0.03, reduction='sum').to(device)
 
 stats = slayer.utils.LearningStats()
-assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+classifier = slayer.classifier.Rate.predict
+assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=classifier)
 
 # Debug
 if debug:
@@ -218,8 +220,13 @@ for epoch in range(epochs):
 
     scheduler.step()
 
+    target_label_list = []
+    predicted_label_list = []
     for i, (input_data, label) in enumerate(test_loader):
         output = assistant.test(input_data, label)
+        predicted_label = classifier(output)
+        target_label_list.extend(label.tolist())
+        predicted_label_list.extend(predicted_label.tolist())
     time_total = (time.time() - time_start) / 60.0
 
     print(f'| Test '
@@ -230,6 +237,8 @@ for epoch in range(epochs):
 
     if stats.testing.best_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
+        torch.save(target_label_list, result_path + '/target_label.pt')
+        torch.save(predicted_label_list, result_path + '/predicted_label.pt')
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')

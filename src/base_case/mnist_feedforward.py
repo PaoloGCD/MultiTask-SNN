@@ -109,7 +109,8 @@ test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
 error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').to(device)
 
 stats = slayer.utils.LearningStats()
-assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+classifier = slayer.classifier.Rate.predict
+assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=classifier)
 
 print('Training (using: %s)' % device)
 for epoch in range(epochs):
@@ -117,12 +118,19 @@ for epoch in range(epochs):
         output = assistant.train(input_data, label)
     print(f'[Epoch {epoch:2d}/{epochs}] {stats}', end='')
 
-    for i, (input_data, label, _, _) in enumerate(test_loader):  # training loop
+    target_label_list = []
+    predicted_label_list = []
+    for i, (input_data, label, _, _) in enumerate(test_loader):  # testing loop
         output = assistant.test(input_data, label)
+        predicted_label = classifier(output)
+        target_label_list.extend(label.tolist())
+        predicted_label_list.extend(predicted_label.tolist())
     print(f'\r[Epoch {epoch:2d}/{epochs}] {stats}')
 
     if stats.testing.best_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
+        torch.save(target_label_list, result_path + '/target_label.pt')
+        torch.save(predicted_label_list, result_path + '/predicted_label.pt')
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')

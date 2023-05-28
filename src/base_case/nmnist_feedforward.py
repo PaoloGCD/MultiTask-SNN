@@ -118,7 +118,8 @@ test_loader = DataLoader(dataset=testing_set, batch_size=32, shuffle=True)
 error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').to(device)
 
 stats = slayer.utils.LearningStats()
-assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
+classifier = slayer.classifier.Rate.predict
+assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=classifier)
 
 # Debug
 print('Initializing debug')
@@ -146,19 +147,26 @@ for epoch in range(epochs):
     time_train = (time.time() - time_start) / 60.0
     time_test_start = time.time()
 
-    for i, (input_data, label, _, _) in enumerate(test_loader):  # training loop
+    target_label_list = []
+    predicted_label_list = []
+    for i, (input_data, label, _, _) in enumerate(test_loader):  # testing loop
         output = assistant.test(input_data, label)
+        predicted_label = classifier(output)
+        target_label_list.extend(label.tolist())
+        predicted_label_list.extend(predicted_label.tolist())
+
+    time_test = (time.time() - time_test_start) / 60.0
 
     print(f'| Test '
           f'loss = {stats.testing.loss:0.4f} '
           f'acc = {stats.testing.accuracy:0.4f} ', end=' ')
 
-    time_test = (time.time() - time_test_start) / 60.0
-
     print(f'| Time train = {time_train:2.3f} test = {time_test:2.3f}')
 
     if stats.testing.best_accuracy:
         torch.save(net.state_dict(), result_path + '/network.pt')
+        torch.save(target_label_list, result_path + '/target_label.pt')
+        torch.save(predicted_label_list, result_path + '/predicted_label.pt')
     stats.update()
     stats.save(result_path + '/')
     net.grad_flow(result_path + '/')
