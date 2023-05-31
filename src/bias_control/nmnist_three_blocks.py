@@ -21,7 +21,7 @@ from matplotlib import animation
 
 from src.misc import stats_multitask, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+from src.misc.dataset_nmnist import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -137,12 +137,17 @@ error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').t
 stats = stats_multitask.LearningStatsHandler(number_output_blocks=2, number_tests=2)
 assistant = assistant_3blocks.Assistant(net, error, optimizer, loss_rate=loss_rate, stats=stats, classifier=slayer.classifier.Rate.predict)
 
+class_label_1 = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=torch.int64)  # original labels
+class_label_2 = torch.tensor([0, 1, 0, 1, 0, 1, 0, 1, 0, 1], dtype=torch.int64)  # label % 2
+func_label_1 = lambda label_raw: class_label_1[label_raw]
+func_label_2 = lambda label_raw: class_label_2[label_raw] + 10
+
 print('Training (using: %s)' % device)
 for epoch in range(epochs):
 
     # Training
     time_start = time.time()
-    for i, (input_data, label1, label2, _) in enumerate(train_loader):  # training loop
+    for i, (input_data, raw_label) in enumerate(train_loader):  # training loop
         # set bias according to task
         if np.random.rand() < 0.5:
             # set biases to 1
@@ -150,7 +155,7 @@ for epoch in range(epochs):
                 module.neuron.bias = bias_1
             for module in net.label_classification_block:
                 module.neuron.bias = bias_1
-            label = label1
+            label = func_label_1(raw_label)
             task = torch.zeros(input_data.shape[0], dtype=torch.int64)
         else:
             # set biases to 0
@@ -158,7 +163,7 @@ for epoch in range(epochs):
                 module.neuron.bias = bias_2
             for module in net.label_classification_block:
                 module.neuron.bias = bias_2
-            label = label2
+            label = func_label_2(raw_label)
             task = torch.ones(input_data.shape[0], dtype=torch.int64)
         # train
         output_label, output_task = assistant.train(input_data, label, task)
@@ -180,9 +185,10 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.bias = bias_1
 
-    for i, (input_data, label1, label2, _) in enumerate(test_loader):
-        task_1 = torch.zeros(input_data.shape[0], dtype=torch.int64)
-        output = assistant.test(input_data, label1, task_1, 0)
+    for i, (input_data, raw_label) in enumerate(test_loader):
+        label_task_1 = func_label_1(raw_label)
+        label_task_2 = torch.zeros(input_data.shape[0], dtype=torch.int64)
+        output = assistant.test(input_data, label_task_1, label_task_2, 0)
 
     test1_classifier_loss, test1_task_loss = stats.testing[0].loss
     test1_classifier_acc, test1_task_acc = stats.testing[0].accuracy
@@ -196,9 +202,10 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.bias = bias_2
 
-    for i, (input_data, label1, label2, _) in enumerate(test_loader):
-        task_2 = torch.ones(input_data.shape[0], dtype=torch.int64)
-        output = assistant.test(input_data, label2, task_2, 1)
+    for i, (input_data, raw_label) in enumerate(test_loader):
+        label_task_1 = func_label_2(raw_label)
+        label_task_2 = torch.ones(input_data.shape[0], dtype=torch.int64)
+        output = assistant.test(input_data, label_task_1, label_task_2, 1)
 
     time_test = (time.time() - time_test_start)/60.0
 
@@ -221,7 +228,7 @@ net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
 # Save input and output samples
-input_data, _, _, _ = next(iter(train_loader))
+input_data, _ = next(iter(train_loader))
 
 # set bias for test 1
 for layer in net.feature_extraction_block:

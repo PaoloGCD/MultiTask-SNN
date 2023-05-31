@@ -21,11 +21,11 @@ from matplotlib import animation
 
 from src.misc import stats_multitask, assistant_3blocks, cuba_multitask
 
-from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+from src.misc.dataset_nmnist import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
-parameters_path = "../../params/three-tasks-three-blocks.xml"
+parameters_path = "../../params/four-tasks-three-blocks.xml"
 data_path = "../../data/NMNIST"
 if len(sys.argv) == 3:
     parameters_path = str(sys.argv[1])
@@ -43,6 +43,7 @@ loss_rate = float(params['params']['loss_rate'])
 threshold_1 = float(params['params']['threshold_1'])
 threshold_2 = float(params['params']['threshold_2'])
 threshold_3 = float(params['params']['threshold_3'])
+threshold_4 = float(params['params']['threshold_4'])
 
 result_path = f'results/Three-tasks-NMNIST-three-blocks-{experiment_number:02d}'
 os.makedirs(result_path, exist_ok=True)
@@ -75,11 +76,11 @@ class Network(torch.nn.Module):
 
         self.label_classification_block = torch.nn.ModuleList([
             cuba_multitask.Dense(neuron_params_drop, 512, 128, weight_norm=True, delay=True),
-            cuba_multitask.Dense(neuron_params, 128, 14, weight_norm=True)
+            cuba_multitask.Dense(neuron_params, 128, 17, weight_norm=True)
         ])
 
         self.label_task_block = torch.nn.ModuleList([
-            cuba_multitask.Dense(neuron_params, 512, 3, weight_norm=True)
+            cuba_multitask.Dense(neuron_params, 512, 4, weight_norm=True)
         ])
 
     def forward(self, spike):
@@ -127,7 +128,7 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+training_set = NMNISTDataset(train=True, path=data_path, transform=augment)
 testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
@@ -138,36 +139,53 @@ error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').t
 stats = stats_multitask.LearningStatsHandler(number_output_blocks=2, number_tests=3)
 assistant = assistant_3blocks.Assistant(net, error, optimizer, loss_rate=loss_rate, stats=stats, classifier=slayer.classifier.Rate.predict)
 
+class_label_1 = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=torch.int64)  # original labels
+class_label_2 = torch.tensor([0, 1, 0, 1, 0, 1, 0, 1, 0, 1], dtype=torch.int64)  # label % 2
+class_label_3 = torch.tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1], dtype=torch.int64)  # label < 5
+class_label_4 = torch.tensor([0, 1, 2, 0, 1, 2, 0, 1, 2, 0], dtype=torch.int64)  # label % 3
+func_label_1 = lambda label_raw: class_label_1[label_raw]
+func_label_2 = lambda label_raw: class_label_2[label_raw] + 10
+func_label_3 = lambda label_raw: class_label_3[label_raw] + 12
+func_label_4 = lambda label_raw: class_label_4[label_raw] + 14
+
 print('Training (using: %s)' % device)
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input_data, label1, label2, label3) in enumerate(train_loader):  # training loop
+    for i, (input_data, raw_label) in enumerate(train_loader):  # training loop
         # set threshold according to task
         random_number = np.random.rand()
-        if random_number < 0.33:
+        if random_number < 0.25:
             # set threshold to value 1
             for layer in net.feature_extraction_block:
                 layer.neuron.threshold = threshold_1
             for layer in net.label_classification_block:
                 layer.neuron.threshold = threshold_1
-            label = label1
+            label = func_label_1(raw_label)
             task = torch.zeros(input_data.shape[0], dtype=torch.int64)
-        elif random_number < 0.66:
+        elif random_number < 0.5:
             # set threshold to value 2
             for layer in net.feature_extraction_block:
                 layer.neuron.threshold = threshold_2
             for layer in net.label_classification_block:
                 layer.neuron.threshold = threshold_2
-            label = label2
+            label = func_label_2(raw_label)
             task = torch.ones(input_data.shape[0], dtype=torch.int64)
-        else:
+        elif random_number < 0.75:
             # set threshold to value 3
             for layer in net.feature_extraction_block:
                 layer.neuron.threshold = threshold_3
             for layer in net.label_classification_block:
                 layer.neuron.threshold = threshold_3
-            label = label3
+            label = func_label_3(raw_label)
             task = torch.ones(input_data.shape[0], dtype=torch.int64)*2
+        else:
+            # set threshold to value 4
+            for layer in net.feature_extraction_block:
+                layer.neuron.threshold = threshold_4
+            for layer in net.label_classification_block:
+                layer.neuron.threshold = threshold_4
+            label = func_label_4(raw_label)
+            task = torch.ones(input_data.shape[0], dtype=torch.int64)*3
         # train
         output_label, output_task = assistant.train(input_data, label, task)
     time_train = (time.time() - time_start)/60.0
@@ -187,9 +205,10 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_1
 
-    for i, (input_data, label1, label2, label3) in enumerate(test_loader):  # training loop
-        label_task_1 = torch.zeros(input_data.shape[0], dtype=torch.int64)
-        output = assistant.test(input_data, label1, label_task_1, 0)
+    for i, (input_data, raw_label) in enumerate(test_loader):
+        label_task_1 = func_label_1(raw_label)
+        label_task_2 = torch.zeros(input_data.shape[0], dtype=torch.int64)
+        output = assistant.test(input_data, label_task_1, label_task_2, 0)
 
     test1_classifier_loss, test1_task_loss = stats.testing[0].loss
     test1_classifier_acc, test1_task_acc = stats.testing[0].accuracy
@@ -203,9 +222,10 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_2
 
-    for i, (input_data, label1, label2, label3) in enumerate(test_loader):  # training loop
+    for i, (input_data, raw_label) in enumerate(test_loader):
+        label_task_1 = func_label_2(raw_label)
         label_task_2 = torch.ones(input_data.shape[0], dtype=torch.int64)
-        output = assistant.test(input_data, label2, label_task_2, 1)
+        output = assistant.test(input_data, label_task_1, label_task_2, 1)
 
     time_test = (time.time() - time_test_start)/60.0
 
@@ -221,15 +241,33 @@ for epoch in range(epochs):
     for layer in net.label_classification_block:
         layer.neuron.threshold = threshold_3
 
-    for i, (input_data, label1, label2, label3) in enumerate(test_loader):  # training loop
-        label_task_3 = torch.ones(input_data.shape[0], dtype=torch.int64)*2
-        output = assistant.test(input_data, label3, label_task_3, 2)
+    for i, (input_data, raw_label) in enumerate(test_loader):
+        label_task_1 = func_label_3(raw_label)
+        label_task_2 = torch.ones(input_data.shape[0], dtype=torch.int64)*2
+        output = assistant.test(input_data, label_task_1, label_task_2, 2)
 
     test3_classifier_loss, test3_task_loss = stats.testing[2].loss
     test3_classifier_acc, test3_task_acc = stats.testing[2].accuracy
     print(f'| Test3 '
           f'loss = {test3_classifier_loss:0.4f} / {test3_task_loss:0.4f} '
           f'acc = {test3_classifier_acc:0.4f} / {test3_task_acc:0.4f}', end=' ')
+
+    # set threshold for test 4
+    for layer in net.feature_extraction_block:
+        layer.neuron.threshold = threshold_4
+    for layer in net.label_classification_block:
+        layer.neuron.threshold = threshold_4
+
+    for i, (input_data, raw_label) in enumerate(test_loader):
+        label_task_1 = func_label_4(raw_label)
+        label_task_2 = torch.ones(input_data.shape[0], dtype=torch.int64)*3
+        output = assistant.test(input_data, label_task_1, label_task_2, 3)
+
+    test4_classifier_loss, test4_task_loss = stats.testing[3].loss
+    test4_classifier_acc, test4_task_acc = stats.testing[3].accuracy
+    print(f'| Test3 '
+          f'loss = {test4_classifier_loss:0.4f} / {test4_task_loss:0.4f} '
+          f'acc = {test4_classifier_acc:0.4f} / {test4_task_acc:0.4f}', end=' ')
 
     print(f'| Time = {time_train+time_test:2.3f}')
 
@@ -245,7 +283,7 @@ net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
 # Save input and output samples
-input_data, _, _, _ = next(iter(train_loader))
+input_data, _ = next(iter(train_loader))
 
 # set threshold for test 1
 for layer in net.feature_extraction_block:
@@ -257,7 +295,7 @@ for layer in net.label_classification_block:
 output_label, output_task = net(input_data.to(device))
 for i in range(3):
     inp_event = slayer.io.tensor_to_event(input_data[i].cpu().data.numpy().reshape(2, 34, 34, -1))
-    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 14, -1))
+    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 17, -1))
     inp_anim = inp_event.anim(plt.figure(figsize=(5, 5)), frame_rate=240)
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     inp_anim.save(f'{result_path}/inp-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
@@ -272,7 +310,7 @@ for layer in net.label_classification_block:
 # process data
 output_label, output_task = net(input_data.to(device))
 for i in range(3):
-    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 14, -1))
+    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 17, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     out_anim.save(f'{result_path}/out2-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
 
@@ -285,6 +323,19 @@ for layer in net.label_classification_block:
 # process data
 output_label, output_task = net(input_data.to(device))
 for i in range(3):
-    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 14, -1))
+    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 17, -1))
+    out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
+    out_anim.save(f'{result_path}/out3-{i}.gif', animation.PillowWriter(fps=24), dpi=300)
+
+# set threshold for test 4
+for layer in net.feature_extraction_block:
+    layer.neuron.threshold = threshold_4
+for layer in net.label_classification_block:
+    layer.neuron.threshold = threshold_4
+
+# process data
+output_label, output_task = net(input_data.to(device))
+for i in range(3):
+    out_event = slayer.io.tensor_to_event(output_label[i].cpu().data.numpy().reshape(1, 17, -1))
     out_anim = out_event.anim(plt.figure(figsize=(10, 5)), frame_rate=240)
     out_anim.save(f'{result_path}/out3-{i}.gif', animation.PillowWriter(fps=24), dpi=300)

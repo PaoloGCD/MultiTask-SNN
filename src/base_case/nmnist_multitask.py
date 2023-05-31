@@ -9,7 +9,7 @@ import os
 import sys
 import time
 import h5py
-import numpy as np
+
 import matplotlib.pyplot as plt
 import torch
 import xmltodict
@@ -21,7 +21,7 @@ from matplotlib import animation
 
 from src.misc import stats_multitask, cuba_multitask
 
-from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+from src.misc.dataset_nmnist import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -125,7 +125,7 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+training_set = NMNISTDataset(train=True, path=data_path, transform=augment)
 testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
@@ -136,17 +136,22 @@ error = slayer.loss.SpikeRate(true_rate=0.2, false_rate=0.03, reduction='sum').t
 stats = stats_multitask.LearningStatsHandler(number_output_blocks=2, number_tests=1)
 classifier = slayer.classifier.Rate.predict
 
+class_label_1 = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=torch.int64)  # original labels
+class_label_2 = torch.tensor([0, 1, 0, 1, 0, 1, 0, 1, 0, 1], dtype=torch.int64)  # label % 2
+func_label_1 = lambda label_raw: class_label_1[label_raw]
+func_label_2 = lambda label_raw: class_label_2[label_raw]
+
 print('Training (using: %s)' % device)
 for epoch in range(epochs):
     
     # Train
     time_start = time.time()
-    for i, (input_data, label1, label2, _) in enumerate(train_loader):  # training loop
+    for i, (input_data, raw_label) in enumerate(train_loader):  # training loop
         net.train()
 
         input_data = input_data.to(device)
-        target_label1 = label1.to(device)
-        target_label2 = (label2-10).to(device)
+        target_label1 = func_label_1(raw_label).to(device)
+        target_label2 = func_label_2(raw_label).to(device)
 
         output_task1, output_task2 = net(input_data)
 
@@ -178,13 +183,13 @@ for epoch in range(epochs):
     # Test
     time_test_start = time.time()
 
-    for i, (input_data, label1, label2, _) in enumerate(test_loader):
+    for i, (input_data, raw_label) in enumerate(test_loader):
         net.eval()
 
         with torch.no_grad():
             input_data = input_data.to(device)
-            target_label1 = label1.to(device)
-            target_label2 = (label2-10).to(device)
+            target_label1 = func_label_1(raw_label).to(device)
+            target_label2 = func_label_2(raw_label).to(device)
 
             output_task1, output_task2 = net(input_data)
 
@@ -204,7 +209,7 @@ for epoch in range(epochs):
 
     test1_classifier_loss1, test1_classifier_loss2 = stats.testing[0].loss
     test1_classifier_acc1, test1_classifier_acc2 = stats.testing[0].accuracy
-    print(f'| Test1 '
+    print(f'| Test '
           f'loss = {test1_classifier_loss1:0.4f} / {test1_classifier_loss2:0.4f} '
           f'acc = {test1_classifier_acc1:0.4f} / {test1_classifier_acc2:0.4f}', end=' ')
 
@@ -220,7 +225,7 @@ net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
 # Save input and output samples
-input_data, _, _, _ = next(iter(train_loader))
+input_data, _ = next(iter(train_loader))
 
 # process data
 output_task1, output_task2 = net(input_data.to(device))

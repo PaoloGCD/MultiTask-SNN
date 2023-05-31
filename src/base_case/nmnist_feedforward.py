@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
-from src.misc.dataset_nmnist_multitask import augment, NMNISTDataset
+from src.misc.dataset_nmnist import augment, NMNISTDataset
 
 # Get parameters
 experiment_number = 0
@@ -109,7 +109,7 @@ net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+training_set = NMNISTDataset(train=True, path=data_path, transform=augment)
 testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
@@ -123,7 +123,7 @@ assistant = slayer.utils.Assistant(net, error, optimizer, stats, classifier=clas
 
 # Debug
 print('Initializing debug')
-input_data, label, _, _ = next(iter(train_loader))
+input_data, label = next(iter(train_loader))
 for epoch in range(200):
     time_start = time.time()
     output = assistant.train(input_data, label)
@@ -138,7 +138,7 @@ for epoch in range(200):
 print('Initializing training')
 for epoch in range(epochs):
     time_start = time.time()
-    for i, (input_data, label, _, _) in enumerate(train_loader):  # training loop
+    for i, (input_data, label) in enumerate(train_loader):  # training loop
         output = assistant.train(input_data, label)
     print(f'[Epoch {epoch:2d}/{epochs}] Train '
           f'loss = {stats.training.loss:0.4f} '
@@ -149,7 +149,7 @@ for epoch in range(epochs):
 
     target_label_list = []
     predicted_label_list = []
-    for i, (input_data, label, _, _) in enumerate(test_loader):  # testing loop
+    for i, (input_data, label) in enumerate(test_loader):  # testing loop
         output = assistant.test(input_data, label)
         predicted_label = classifier(output)
         target_label_list.extend(label.tolist())
@@ -177,7 +177,7 @@ net.load_state_dict(torch.load(result_path + '/network.pt'))
 net.export_hdf5(result_path + '/network.net')
 
 # Save input and output samples
-input_data, _, _, _ = next(iter(train_loader))
+input_data, _ = next(iter(train_loader))
 
 output = net(input_data.to(device))
 for i in range(5):

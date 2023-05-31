@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 import lava.lib.dl.slayer as slayer
 
 from matplotlib import animation
-from src.misc.dataset_cifar10dvs import CIFAR10DVSDataset
+
 from src.misc.dataset_nmnist import augment, NMNISTDataset
 
 # Get parameters
@@ -100,14 +100,14 @@ class Network(torch.nn.Module):
             b.export_hdf5(layer.create_group(f'{idx}'))
 
 
-device = torch.device('cpu')
-# device = torch.device('cuda')
+# device = torch.device('cpu')
+device = torch.device('cuda')
 
 net = Network().to(device)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
 
-training_set = NMNISTDataset(train=True, transform=augment, path=data_path)
+training_set = NMNISTDataset(train=True, path=data_path, transform=augment)
 testing_set = NMNISTDataset(train=False, path=data_path)
 
 train_loader = DataLoader(dataset=training_set, batch_size=32, shuffle=True)
@@ -139,7 +139,7 @@ for epoch in range(epochs):
 
     time_total = (time.time() - time_start) / 60.0
 
-    print(f'| Test1 '
+    print(f'| Test '
           f'loss = {stats.testing.loss:0.4f} '
           f'acc = {stats.testing.accuracy:0.4f} ', end=' ')
 
